@@ -3,28 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Arrecadação Ailog - v4</title>
+    <title>Gestão de Arrecadação Ailog - v5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { font-size: 0.7rem; }
         .row-red { background-color: #fee2e2 !important; color: #991b1b; }
         .row-green { background-color: #dcfce7 !important; color: #166534; }
-        .table-container { max-height: 75vh; overflow-y: auto; border: 1px solid #e5e7eb; }
+        .table-container { max-height: 70vh; overflow-y: auto; border: 1px solid #e5e7eb; }
         th { position: sticky; top: 0; background: #f8fafc; z-index: 10; border-bottom: 2px solid #e2e8f0; }
         td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; }
-        input[type="checkbox"] { cursor: pointer; }
     </style>
 </head>
 <body class="bg-slate-100 p-2">
 
     <div class="max-w-[100%] mx-auto">
-        <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-blue-500">
-            <h1 class="font-bold text-slate-700 uppercase tracking-tight">Painel Arrecadação - Gestão de Operações</h1>
+        <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-blue-600">
+            <div class="flex items-center gap-4">
+                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Painel Arrecadação Ailog</h1>
+                <div id="cronometro" class="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 hidden">
+                    TEMPO: 00:00:00
+                </div>
+            </div>
             
             <div class="flex gap-2">
                 <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
-                <label for="fileInput" class="bg-slate-700 text-white px-3 py-1 rounded cursor-pointer hover:bg-slate-800 transition text-[10px]">
+                <label for="fileInput" id="labelImport" class="bg-slate-700 text-white px-3 py-1 rounded cursor-pointer hover:bg-slate-800 transition text-[10px]">
                     IMPORTAR PLANILHA
                 </label>
                 <button id="btnNaoDisparar" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 hidden text-[10px]">
@@ -33,26 +37,33 @@
                 <button id="btnEmailEnviado" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 hidden text-[10px]">
                     E-MAIL ENVIADO (<span class="countSel">0</span>)
                 </button>
+                <button id="btnZerar" class="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 hidden text-[10px] font-bold">
+                    FINALIZAR TURNO / ZERAR
+                </button>
             </div>
         </header>
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2 bg-white p-2 rounded shadow-sm">
             <div class="flex items-center gap-2 border-r pr-2">
                 <span class="font-bold text-slate-500">Analista:</span>
-                <select id="filtroAnalista" class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none focus:ring-1 ring-blue-400">
+                <select id="filtroAnalista" class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none">
                     <option value="todos">Todos</option>
                 </select>
             </div>
-            <div class="flex items-center gap-2 col-span-2">
-                <span class="font-bold text-slate-500">Pesquisa Geral:</span>
-                <input type="text" id="buscaGlobal" placeholder="Busque por CNPJ, Razão, Rede ou ID..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none focus:ring-1 ring-blue-400">
+            <div class="flex items-center gap-2 border-r pr-2">
+                <span class="font-bold text-slate-500">Pesquisa:</span>
+                <input type="text" id="buscaGlobal" placeholder="CNPJ, Razão, Rede..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none">
+            </div>
+            <div class="flex items-center gap-4 px-2 border-r text-[11px]">
+                <div class="text-green-700 font-bold">ENVIADOS: <span id="totalEnviados">0</span></div>
+                <div class="text-slate-500 italic">PENDENTES: <span id="countPendentes">0</span></div>
             </div>
             <div class="flex items-center justify-end text-blue-600 font-mono font-bold">
-                <span id="infoResumo">Aguardando dados...</span>
+                <span id="infoResumo">Aguardando planilha...</span>
             </div>
         </div>
 
-        <div class="bg-white rounded shadow-sm table-container">
+        <div id="mainTable" class="bg-white rounded shadow-sm table-container hidden">
             <table class="min-w-full table-fixed border-collapse">
                 <thead>
                     <tr class="text-[9px] text-slate-500">
@@ -60,57 +71,67 @@
                         <th class="w-10 p-1 text-left">ID</th>
                         <th class="w-24 p-1 text-left">CNPJ</th>
                         <th class="p-1 text-left">RAZÃO SOCIAL</th>
-                        <th class="w-28 p-1 text-left bg-blue-50">REDE ESTABELECIMENTO</th>
+                        <th class="w-28 p-1 text-left bg-blue-50">REDE</th>
                         <th class="w-24 p-1 text-left">RESPONSÁVEL</th>
-                        <th class="w-14 p-1 text-right text-red-500">PENDENTE</th>
+                        <th class="w-16 p-1 text-right text-red-500">PENDENTE</th>
                         <th class="w-18 p-1 text-center">ÚLT. CONTATO</th>
                         <th class="w-16 p-1 text-center">STATUS</th>
                     </tr>
                 </thead>
-                <tbody id="tableBody" class="text-[10px] text-slate-700">
-                    </tbody>
+                <tbody id="tableBody" class="text-[10px] text-slate-700"></tbody>
             </table>
         </div>
     </div>
 
     <script>
         let dados = [];
+        let totalEnviadosContador = 0;
+        let tempoInicio = null;
+        let intervaloCronometro = null;
         const hoje = new Date();
 
-        // Inicialização de Eventos
+        // Elementos
+        const btnZerar = document.getElementById('btnZerar');
+        const cronoEl = document.getElementById('cronometro');
+        const totalEnviadosEl = document.getElementById('totalEnviados');
+
         document.getElementById('fileInput').addEventListener('change', carregarPlanilha);
         document.getElementById('filtroAnalista').addEventListener('change', render);
         document.getElementById('buscaGlobal').addEventListener('input', render);
         document.getElementById('selectAll').addEventListener('change', toggleTodosVisiveis);
         document.getElementById('btnNaoDisparar').addEventListener('click', () => acaoEmMassa('vermelho'));
         document.getElementById('btnEmailEnviado').addEventListener('click', () => acaoEmMassa('verde'));
+        btnZerar.addEventListener('click', finalizarTurno);
 
         function carregarPlanilha(e) {
             const file = e.target.files[0];
+            if (!file) return;
             const reader = new FileReader();
             reader.onload = (evt) => {
                 const wb = XLSX.read(evt.target.result, { type: 'binary' });
                 const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                processar(json);
+                iniciarSistema(json);
             };
             reader.readAsBinaryString(file);
         }
 
-        function processar(rows) {
-            // Filtro de 7 dias e limpeza de dados
+        function iniciarSistema(rows) {
             dados = rows.filter(r => {
                 if (!r['ULTIMO CONTATO']) return true;
-                const dataC = parseData(r['ULTIMO CONTATO']);
-                const dif = Math.ceil(Math.abs(hoje - dataC) / (1000 * 60 * 60 * 24));
-                return dif > 7;
-            }).map(r => ({ 
-                ...r, 
-                cor: '', 
-                selecionado: false,
-                // Garantir que campos de busca existam como string
-                redeBusca: String(r['REDE ESTABELECIMENTO'] || '').toLowerCase(),
-                razaoBusca: String(r['RAZÃO SOCIAL'] || '').toLowerCase()
-            }));
+                const p = r['ULTIMO CONTATO'].split(' ')[0].split('/');
+                const dataC = new Date(p[2], p[1] - 1, p[0]);
+                return Math.ceil(Math.abs(hoje - dataC) / (1000 * 60 * 60 * 24)) > 7;
+            }).map(r => ({ ...r, cor: '', selecionado: false }));
+
+            // Reset de indicadores
+            totalEnviadosContador = 0;
+            totalEnviadosEl.innerText = "0";
+            
+            // Iniciar Cronômetro
+            tempoInicio = new Date();
+            if(intervaloCronometro) clearInterval(intervaloCronometro);
+            intervaloCronometro = setInterval(atualizarTempo, 1000);
+            cronoEl.classList.remove('hidden');
 
             // Popular Analistas
             const analistas = [...new Set(dados.map(d => d['USUARIO RESPONSAVEL']))].sort();
@@ -118,15 +139,23 @@
             combo.innerHTML = '<option value="todos">Todos</option>';
             analistas.forEach(a => { if(a) combo.innerHTML += `<option value="${a}">${a}</option>`; });
 
+            // Mostrar UI
+            document.getElementById('mainTable').classList.remove('hidden');
             document.getElementById('btnNaoDisparar').classList.remove('hidden');
             document.getElementById('btnEmailEnviado').classList.remove('hidden');
+            btnZerar.classList.remove('hidden');
+            document.getElementById('labelImport').classList.add('hidden');
+            
             render();
         }
 
-        function parseData(d) {
-            if (typeof d === 'number') return new Date((d - 25569) * 86400 * 1000);
-            const p = d.split(' ')[0].split('/');
-            return new Date(p[2], p[1] - 1, p[0]);
+        function atualizarTempo() {
+            const agora = new Date();
+            const diff = new Date(agora - tempoInicio);
+            const h = String(diff.getUTCHours()).padStart(2, '0');
+            const m = String(diff.getUTCMinutes()).padStart(2, '0');
+            const s = String(diff.getUTCSeconds()).padStart(2, '0');
+            cronoEl.innerText = `TEMPO: ${h}:${m}:${s}`;
         }
 
         function render() {
@@ -134,98 +163,72 @@
             const busca = document.getElementById('buscaGlobal').value.toLowerCase();
             const body = document.getElementById('tableBody');
             body.innerHTML = '';
-            document.getElementById('selectAll').checked = false;
 
             const filtrados = dados.filter(d => {
                 const matchAnalista = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const matchBusca = !busca || 
-                    String(d.ID).includes(busca) || 
-                    String(d.CNPJ).includes(busca) || 
-                    d.razaoBusca.includes(busca) || 
-                    d.redeBusca.includes(busca);
-                
-                return matchAnalista && matchBusca;
+                const sBusca = `${d.ID} ${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO']}`.toLowerCase();
+                return matchAnalista && sBusca.includes(busca);
             });
 
             filtrados.forEach(row => {
                 const tr = document.createElement('tr');
-                const cssCor = row.cor === 'vermelho' ? 'row-red' : (row.cor === 'verde' ? 'row-green' : '');
-                tr.className = `border-b hover:bg-slate-50 cursor-pointer ${cssCor}`;
-                
+                const css = row.cor === 'vermelho' ? 'row-red' : (row.cor === 'verde' ? 'row-green' : '');
+                tr.className = `border-b hover:bg-slate-50 cursor-pointer ${css}`;
                 tr.innerHTML = `
                     <td class="p-1 text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onclick="event.stopPropagation(); updateSel(${row.ID}, this.checked)"></td>
                     <td class="p-1 text-slate-400">${row.ID || ''}</td>
                     <td class="p-1 font-mono">${row.CNPJ || ''}</td>
-                    <td class="p-1 font-bold" title="${row['RAZÃO SOCIAL']}">${row['RAZÃO SOCIAL'] || ''}</td>
-                    <td class="p-1 italic text-slate-600" title="${row['REDE ESTABELECIMENTO']}">${row['REDE ESTABELECIMENTO'] || '-'}</td>
+                    <td class="p-1 font-bold">${row['RAZÃO SOCIAL'] || ''}</td>
+                    <td class="p-1 italic text-slate-600">${row['REDE ESTABELECIMENTO'] || '-'}</td>
                     <td class="p-1">${row['USUARIO RESPONSAVEL'] || ''}</td>
                     <td class="p-1 text-right font-mono text-red-600">R$${row['VALOR PENDENTE'] || 0}</td>
                     <td class="p-1 text-center">${row['ULTIMO CONTATO'] ? row['ULTIMO CONTATO'].split(' ')[0] : '-'}</td>
                     <td class="p-1 text-center"><span class="bg-slate-100 px-1 rounded-sm text-[8px] border">${row.STATUS || ''}</span></td>
                 `;
-                
-                tr.onclick = () => alternarCorManual(row.ID, row.cor);
+                tr.onclick = () => { if(!row.cor) { row.cor = 'vermelho'; render(); } else if(confirm("Remover marcação?")) { row.cor = ''; render(); } };
                 body.appendChild(tr);
             });
 
             document.getElementById('infoResumo').innerText = `LISTADOS: ${filtrados.length}`;
-            atualizarContador();
+            document.getElementById('countPendentes').innerText = dados.filter(d => d.cor === '').length;
+            atualizarContadorSelecao();
         }
 
-        function updateSel(id, val) {
-            const item = dados.find(d => d.ID === id);
-            if (item) item.selecionado = val;
-            atualizarContador();
-        }
+        function updateSel(id, v) { const i = dados.find(d => d.ID === id); if(i) i.selecionado = v; atualizarContadorSelecao(); }
 
         function toggleTodosVisiveis(e) {
             const analista = document.getElementById('filtroAnalista').value;
             const busca = document.getElementById('buscaGlobal').value.toLowerCase();
-            const val = e.target.checked;
-
             dados.forEach(d => {
-                const matchAnalista = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const matchBusca = !busca || 
-                    String(d.ID).includes(busca) || 
-                    String(d.CNPJ).includes(busca) || 
-                    d.razaoBusca.includes(busca) || 
-                    d.redeBusca.includes(busca);
-
-                if (matchAnalista && matchBusca) {
-                    d.selecionado = val;
-                }
+                const sBusca = `${d.ID} ${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO']}`.toLowerCase();
+                if ((analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista) && sBusca.includes(busca)) d.selecionado = e.target.checked;
             });
             render();
         }
 
-        function alternarCorManual(id, corAtual) {
-            const item = dados.find(d => d.ID === id);
-            if (corAtual !== '') {
-                if (!confirm("Deseja remover a sinalização colorida deste posto?")) return;
-                item.cor = '';
-            } else {
-                item.cor = 'vermelho'; // Padrão ao clicar
-            }
-            render();
-        }
-
-        function acaoEmMassa(novaCor) {
-            const selecionados = dados.filter(d => d.selecionado);
-            if (selecionados.length === 0) return alert("Selecione os itens desejados na caixa de marcação.");
-
-            const acao = novaCor === 'verde' ? 'E-MAIL ENVIADO' : 'NÃO DISPARAR';
-            if (confirm(`Confirmar ação [${acao}] para ${selecionados.length} postos?`)) {
-                selecionados.forEach(d => {
-                    d.cor = novaCor;
+        function acaoEmMassa(cor) {
+            const sel = dados.filter(d => d.selecionado);
+            if (sel.length === 0) return alert("Selecione itens primeiro.");
+            if (confirm(`Confirmar ação para ${sel.length} postos?`)) {
+                sel.forEach(d => {
+                    if (cor === 'verde' && d.cor !== 'verde') totalEnviadosContador++;
+                    d.cor = cor;
                     d.selecionado = false;
                 });
+                totalEnviadosEl.innerText = totalEnviadosContador;
                 render();
             }
         }
 
-        function atualizarContador() {
-            const total = dados.filter(d => d.selecionado).length;
-            document.querySelectorAll('.countSel').forEach(el => el.innerText = total);
+        function finalizarTurno() {
+            const tempoGasto = cronoEl.innerText.replace('TEMPO: ', '');
+            alert(`--- RESUMO DO TURNO ---\n\nE-mails Enviados: ${totalEnviadosContador}\nTempo Total Trabalhado: ${tempoGasto}\n\nA página será reiniciada para nova planilha.`);
+            location.reload();
+        }
+
+        function atualizarContadorSelecao() {
+            const t = dados.filter(d => d.selecionado).length;
+            document.querySelectorAll('.countSel').forEach(el => el.innerText = t);
         }
     </script>
 </body>
