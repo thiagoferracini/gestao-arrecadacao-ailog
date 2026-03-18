@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Arrecadação Ailog - v8</title>
+    <title>Gestão de Arrecadação Ailog - v9</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -12,15 +12,15 @@
         .row-green { background-color: #dcfce7 !important; color: #166534; }
         .row-red { background-color: #fee2e2 !important; color: #991b1b; }
         .table-container { max-height: 70vh; overflow-y: auto; border: 1px solid #e5e7eb; }
-        th { position: sticky; top: 0; background: #f8fafc; z-index: 10; border-bottom: 2px solid #e2e8f0; }
+        th { position: sticky; top: 0; background: #f8fafc; z-index: 10; border-bottom: 2px solid #e2e8f0; padding: 6px !important; }
         td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; padding: 4px !important; }
-        .copy-badge { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e3a8a; color: white; padding: 5px 15px; border-radius: 20px; z-index: 100; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .cnpj-cell { cursor: pointer; text-decoration: underline; color: #2563eb; font-weight: bold; }
+        .copy-badge { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e3a8a; color: white; padding: 5px 15px; border-radius: 20px; z-index: 100; display: none; }
     </style>
 </head>
 <body class="bg-slate-100 p-2">
 
-    <div id="copyAlert" class="copy-badge text-[10px] font-bold uppercase">CNPJ Copiado e Linha em Azul</div>
+    <div id="copyAlert" class="copy-badge text-[10px] font-bold uppercase">CNPJ Copiado - Linha em Azul</div>
 
     <div class="max-w-[100%] mx-auto">
         <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-blue-600">
@@ -31,7 +31,7 @@
             
             <div class="flex gap-2">
                 <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
-                <label for="fileInput" id="labelImport" class="bg-slate-700 text-white px-3 py-1 rounded cursor-pointer hover:bg-slate-800 transition text-[10px]">IMPORTAR PLANILHA</label>
+                <label for="fileInput" id="labelImport" class="bg-slate-700 text-white px-4 py-1.5 rounded cursor-pointer hover:bg-slate-800 transition text-[10px] font-bold">IMPORTAR PLANILHA</label>
                 <button id="btnNaoDisparar" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 hidden text-[10px]">NÃO DISPARAR (<span class="countSel">0</span>)</button>
                 <button id="btnEmailEnviado" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 hidden text-[10px]">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
                 <button id="btnZerar" class="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 hidden text-[10px] font-bold">FINALIZAR / ZERAR</button>
@@ -51,16 +51,16 @@
                 <div class="text-green-700 font-bold">ENVIADOS: <span id="totalEnviados">0</span></div>
                 <div class="text-slate-500 italic">PENDENTES: <span id="countPendentes">0</span></div>
             </div>
-            <div class="flex items-center justify-end text-blue-600 font-mono font-bold"><span id="infoResumo">Aguardando planilha...</span></div>
+            <div class="flex items-center justify-end text-blue-600 font-mono font-bold"><span id="infoResumo">Aguardando arquivo...</span></div>
         </div>
 
         <div id="mainTable" class="bg-white rounded shadow-sm table-container hidden">
             <table class="min-w-full table-fixed border-collapse">
                 <thead>
-                    <tr class="text-[9px] text-slate-500">
+                    <tr class="text-[9px] text-slate-500 uppercase">
                         <th class="w-8 p-1 text-center"><input type="checkbox" id="selectAll"></th>
                         <th class="w-10 p-1 text-left">ID</th>
-                        <th class="w-24 p-1 text-left">CNPJ (COPIAR)</th>
+                        <th class="w-24 p-1 text-left">CNPJ (Copia)</th>
                         <th class="p-1 text-left">RAZÃO SOCIAL</th>
                         <th class="w-28 p-1 text-left bg-blue-50">REDE</th>
                         <th class="w-24 p-1 text-left">RESPONSÁVEL</th>
@@ -81,64 +81,63 @@
         let intervaloCronometro = null;
         const hoje = new Date();
 
-        const btnZerar = document.getElementById('btnZerar');
-        const cronoEl = document.getElementById('cronometro');
-        const totalEnviadosEl = document.getElementById('totalEnviados');
-
         document.getElementById('fileInput').addEventListener('change', carregarPlanilha);
         document.getElementById('filtroAnalista').addEventListener('change', render);
         document.getElementById('buscaGlobal').addEventListener('input', render);
         document.getElementById('selectAll').addEventListener('change', toggleTodosVisiveis);
         document.getElementById('btnNaoDisparar').addEventListener('click', () => acaoEmMassa('vermelho'));
         document.getElementById('btnEmailEnviado').addEventListener('click', () => acaoEmMassa('verde'));
-        btnZerar.addEventListener('click', finalizarTurno);
+        document.getElementById('btnZerar').addEventListener('click', finalizarTurno);
 
         function carregarPlanilha(e) {
             const file = e.target.files[0];
             if (!file) return;
+            
             const reader = new FileReader();
             reader.onload = (evt) => {
                 try {
-                    const data = evt.target.result;
-                    const wb = XLSX.read(data, { type: 'binary' });
-                    const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                    if(json.length === 0) alert("Planilha vazia!");
-                    else iniciarSistema(json);
+                    const bstr = evt.target.result;
+                    const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+                    const sheetName = wb.SheetNames[0];
+                    const json = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+                    
+                    if(json.length > 0) iniciarSistema(json);
+                    else alert("A planilha parece estar vazia.");
                 } catch (err) {
                     console.error(err);
-                    alert("Erro ao ler o arquivo. Verifique se é um Excel válido.");
+                    alert("Erro ao processar o arquivo. Tente salvar como .xlsx novamente.");
                 }
             };
             reader.readAsBinaryString(file);
         }
 
-        function tratarDataExcel(dataInput) {
-            if (!dataInput) return new Date(2000, 0, 1);
-            if (typeof dataInput === 'number') return new Date((dataInput - 25569) * 86400000);
-            const partes = String(dataInput).split(' ')[0].split('/');
-            if (partes.length === 3) return new Date(partes[2], partes[1] - 1, partes[0]);
+        function tratarData(val) {
+            if (val instanceof Date) return val;
+            if (!val) return new Date(2000, 0, 1);
+            const p = String(val).split(' ')[0].split('/');
+            if (p.length === 3) return new Date(p[2], p[1]-1, p[0]);
             return new Date(2000, 0, 1);
         }
 
         function iniciarSistema(rows) {
             dados = rows.filter(r => {
-                const dataC = tratarDataExcel(r['ULTIMO CONTATO']);
+                const dataC = tratarData(r['ULTIMO CONTATO']);
                 const dif = Math.ceil(Math.abs(hoje - dataC) / (1000 * 60 * 60 * 24));
                 return dif > 7;
-            }).map((r, index) => ({ 
-                ...r, 
-                tempId: index, 
-                cor: '', 
+            }).map((r, i) => ({
+                ...r,
+                tempId: i,
+                cor: "",
                 selecionado: false,
                 CNPJ_Limpo: String(r['CNPJ'] || '').replace(/\D/g, '')
             }));
 
-            totalEnviadosContador = 0;
-            totalEnviadosEl.innerText = "0";
             tempoInicio = new Date();
             if(intervaloCronometro) clearInterval(intervaloCronometro);
-            intervaloCronometro = setInterval(atualizarTempo, 1000);
-            cronoEl.classList.remove('hidden');
+            intervaloCronometro = setInterval(() => {
+                const diff = new Date(new Date() - tempoInicio);
+                document.getElementById('cronometro').innerText = `TEMPO: ${String(diff.getUTCHours()).padStart(2,'0')}:${String(diff.getUTCMinutes()).padStart(2,'0')}:${String(diff.getUTCSeconds()).padStart(2,'0')}`;
+            }, 1000);
 
             const analistas = [...new Set(dados.map(d => d['USUARIO RESPONSAVEL']))].sort();
             const combo = document.getElementById('filtroAnalista');
@@ -146,27 +145,23 @@
             analistas.forEach(a => { if(a) combo.innerHTML += `<option value="${a}">${a}</option>`; });
 
             document.getElementById('mainTable').classList.remove('hidden');
+            document.getElementById('cronometro').classList.remove('hidden');
             document.getElementById('btnNaoDisparar').classList.remove('hidden');
             document.getElementById('btnEmailEnviado').classList.remove('hidden');
-            btnZerar.classList.remove('hidden');
+            document.getElementById('btnZerar').classList.remove('hidden');
             document.getElementById('labelImport').classList.add('hidden');
             render();
         }
 
-        function atualizarTempo() {
-            const diff = new Date(new Date() - tempoInicio);
-            cronoEl.innerText = `TEMPO: ${String(diff.getUTCHours()).padStart(2,'0')}:${String(diff.getUTCMinutes()).padStart(2,'0')}:${String(diff.getUTCSeconds()).padStart(2,'0')}`;
-        }
-
         function copiarECor(id, cnpj) {
-            navigator.clipboard.writeText(String(cnpj)).then(() => {
+            navigator.clipboard.writeText(cnpj).then(() => {
                 const alertEl = document.getElementById('copyAlert');
                 alertEl.style.display = 'block';
                 setTimeout(() => { alertEl.style.display = 'none'; }, 1200);
                 
                 const item = dados.find(d => d.tempId === id);
-                if (item && item.cor === '') {
-                    item.cor = 'azul';
+                if (item && item.cor === "") {
+                    item.cor = "azul";
                     render();
                 }
             });
@@ -180,7 +175,7 @@
 
             const filtrados = dados.filter(d => {
                 const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const s = `${d.ID} ${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO']}`.toLowerCase();
+                const s = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO']}`.toLowerCase();
                 return matchA && s.includes(busca);
             });
 
@@ -195,7 +190,7 @@
                     <td class="italic text-slate-600">${row['REDE ESTABELECIMENTO'] || '-'}</td>
                     <td>${row['USUARIO RESPONSAVEL'] || ''}</td>
                     <td class="text-right text-red-600 font-mono">R$${row['VALOR PENDENTE'] || 0}</td>
-                    <td class="text-center">${row['ULTIMO CONTATO'] ? String(row['ULTIMO CONTATO']).split(' ')[0] : '-'}</td>
+                    <td class="text-center">${row['ULTIMO CONTATO'] ? (row['ULTIMO CONTATO'] instanceof Date ? row['ULTIMO CONTATO'].toLocaleDateString('pt-BR') : String(row['ULTIMO CONTATO']).split(' ')[0]) : '-'}</td>
                     <td class="text-center"><span class="bg-white px-1 rounded-sm border text-[8px]">${row.STATUS || ''}</span></td>
                 `;
                 body.appendChild(tr);
@@ -211,7 +206,7 @@
             const analista = document.getElementById('filtroAnalista').value;
             const busca = document.getElementById('buscaGlobal').value.toLowerCase();
             dados.forEach(d => {
-                const s = `${d.ID} ${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO']}`.toLowerCase();
+                const s = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO']}`.toLowerCase();
                 if ((analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista) && s.includes(busca)) d.selecionado = e.target.checked;
             });
             render();
@@ -219,21 +214,20 @@
 
         function acaoEmMassa(corDestino) {
             const sel = dados.filter(d => d.selecionado);
-            if (sel.length === 0) return alert("Selecione itens primeiro.");
-            if (confirm(`Confirmar ação para ${sel.length} postos?`)) {
+            if (sel.length === 0) return alert("Selecione os postos primeiro.");
+            if (confirm(`Marcar ${sel.length} postos?`)) {
                 sel.forEach(d => {
                     if (corDestino === 'verde' && d.cor !== 'verde') totalEnviadosContador++;
-                    if (corDestino === 'vermelho' && d.cor === 'verde') totalEnviadosContador--;
                     d.cor = corDestino;
                     d.selecionado = false;
                 });
-                totalEnviadosEl.innerText = totalEnviadosContador;
+                document.getElementById('totalEnviados').innerText = totalEnviadosContador;
                 render();
             }
         }
 
         function finalizarTurno() {
-            alert(`--- RELATÓRIO ---\nEnviados: ${totalEnviadosContador}\nTempo: ${cronoEl.innerText}\n\nA página será reiniciada.`);
+            alert(`RESUMO:\nEnviados: ${totalEnviadosContador}\nTempo: ${document.getElementById('cronometro').innerText}\n\nA página será reiniciada.`);
             location.reload();
         }
 
