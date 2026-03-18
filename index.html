@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Arrecadação Ailog - v5</title>
+    <title>Gestão de Arrecadação Ailog - v6</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -13,9 +13,13 @@
         .table-container { max-height: 70vh; overflow-y: auto; border: 1px solid #e5e7eb; }
         th { position: sticky; top: 0; background: #f8fafc; z-index: 10; border-bottom: 2px solid #e2e8f0; }
         td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; }
+        .copy-badge { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 5px 15px; border-radius: 20px; z-index: 100; display: none; }
+        .cnpj-cell:hover { text-decoration: underline; color: #2563eb; }
     </style>
 </head>
 <body class="bg-slate-100 p-2">
+
+    <div id="copyAlert" class="copy-badge text-[10px] font-bold">CNPJ COPIADO!</div>
 
     <div class="max-w-[100%] mx-auto">
         <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-blue-600">
@@ -38,7 +42,7 @@
                     E-MAIL ENVIADO (<span class="countSel">0</span>)
                 </button>
                 <button id="btnZerar" class="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 hidden text-[10px] font-bold">
-                    FINALIZAR TURNO / ZERAR
+                    FINALIZAR / ZERAR
                 </button>
             </div>
         </header>
@@ -51,7 +55,7 @@
                 </select>
             </div>
             <div class="flex items-center gap-2 border-r pr-2">
-                <span class="font-bold text-slate-500">Pesquisa:</span>
+                <span class="font-bold text-slate-500">Busca:</span>
                 <input type="text" id="buscaGlobal" placeholder="CNPJ, Razão, Rede..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none">
             </div>
             <div class="flex items-center gap-4 px-2 border-r text-[11px]">
@@ -69,7 +73,7 @@
                     <tr class="text-[9px] text-slate-500">
                         <th class="w-8 p-1 text-center"><input type="checkbox" id="selectAll"></th>
                         <th class="w-10 p-1 text-left">ID</th>
-                        <th class="w-24 p-1 text-left">CNPJ</th>
+                        <th class="w-24 p-1 text-left">CNPJ (CLIQUE)</th>
                         <th class="p-1 text-left">RAZÃO SOCIAL</th>
                         <th class="w-28 p-1 text-left bg-blue-50">REDE</th>
                         <th class="w-24 p-1 text-left">RESPONSÁVEL</th>
@@ -90,7 +94,6 @@
         let intervaloCronometro = null;
         const hoje = new Date();
 
-        // Elementos
         const btnZerar = document.getElementById('btnZerar');
         const cronoEl = document.getElementById('cronometro');
         const totalEnviadosEl = document.getElementById('totalEnviados');
@@ -123,29 +126,23 @@
                 return Math.ceil(Math.abs(hoje - dataC) / (1000 * 60 * 60 * 24)) > 7;
             }).map(r => ({ ...r, cor: '', selecionado: false }));
 
-            // Reset de indicadores
             totalEnviadosContador = 0;
             totalEnviadosEl.innerText = "0";
-            
-            // Iniciar Cronômetro
             tempoInicio = new Date();
             if(intervaloCronometro) clearInterval(intervaloCronometro);
             intervaloCronometro = setInterval(atualizarTempo, 1000);
             cronoEl.classList.remove('hidden');
 
-            // Popular Analistas
             const analistas = [...new Set(dados.map(d => d['USUARIO RESPONSAVEL']))].sort();
             const combo = document.getElementById('filtroAnalista');
             combo.innerHTML = '<option value="todos">Todos</option>';
             analistas.forEach(a => { if(a) combo.innerHTML += `<option value="${a}">${a}</option>`; });
 
-            // Mostrar UI
             document.getElementById('mainTable').classList.remove('hidden');
             document.getElementById('btnNaoDisparar').classList.remove('hidden');
             document.getElementById('btnEmailEnviado').classList.remove('hidden');
             btnZerar.classList.remove('hidden');
             document.getElementById('labelImport').classList.add('hidden');
-            
             render();
         }
 
@@ -156,6 +153,14 @@
             const m = String(diff.getUTCMinutes()).padStart(2, '0');
             const s = String(diff.getUTCSeconds()).padStart(2, '0');
             cronoEl.innerText = `TEMPO: ${h}:${m}:${s}`;
+        }
+
+        function copiarTexto(texto) {
+            navigator.clipboard.writeText(texto).then(() => {
+                const alert = document.getElementById('copyAlert');
+                alert.style.display = 'block';
+                setTimeout(() => { alert.style.display = 'none'; }, 1000);
+            });
         }
 
         function render() {
@@ -173,25 +178,34 @@
             filtrados.forEach(row => {
                 const tr = document.createElement('tr');
                 const css = row.cor === 'vermelho' ? 'row-red' : (row.cor === 'verde' ? 'row-green' : '');
-                tr.className = `border-b hover:bg-slate-50 cursor-pointer ${css}`;
+                tr.className = `border-b hover:bg-slate-50 ${css}`;
                 tr.innerHTML = `
-                    <td class="p-1 text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onclick="event.stopPropagation(); updateSel(${row.ID}, this.checked)"></td>
-                    <td class="p-1 text-slate-400">${row.ID || ''}</td>
-                    <td class="p-1 font-mono">${row.CNPJ || ''}</td>
-                    <td class="p-1 font-bold">${row['RAZÃO SOCIAL'] || ''}</td>
-                    <td class="p-1 italic text-slate-600">${row['REDE ESTABELECIMENTO'] || '-'}</td>
-                    <td class="p-1">${row['USUARIO RESPONSAVEL'] || ''}</td>
-                    <td class="p-1 text-right font-mono text-red-600">R$${row['VALOR PENDENTE'] || 0}</td>
-                    <td class="p-1 text-center">${row['ULTIMO CONTATO'] ? row['ULTIMO CONTATO'].split(' ')[0] : '-'}</td>
-                    <td class="p-1 text-center"><span class="bg-slate-100 px-1 rounded-sm text-[8px] border">${row.STATUS || ''}</span></td>
+                    <td class="p-1 text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onclick="updateSel(${row.ID}, this.checked)"></td>
+                    <td class="p-1 text-slate-400 cursor-pointer" onclick="alternarLinha(${row.ID})">${row.ID || ''}</td>
+                    <td class="p-1 font-mono font-bold cnpj-cell cursor-pointer" title="Clique para copiar" onclick="copiarTexto('${row.CNPJ}')">${row.CNPJ || ''}</td>
+                    <td class="p-1 font-bold cursor-pointer" onclick="alternarLinha(${row.ID})">${row['RAZÃO SOCIAL'] || ''}</td>
+                    <td class="p-1 italic text-slate-600 cursor-pointer" onclick="alternarLinha(${row.ID})">${row['REDE ESTABELECIMENTO'] || '-'}</td>
+                    <td class="p-1 cursor-pointer" onclick="alternarLinha(${row.ID})">${row['USUARIO RESPONSAVEL'] || ''}</td>
+                    <td class="p-1 text-right font-mono text-red-600 cursor-pointer" onclick="alternarLinha(${row.ID})">R$${row['VALOR PENDENTE'] || 0}</td>
+                    <td class="p-1 text-center cursor-pointer" onclick="alternarLinha(${row.ID})">${row['ULTIMO CONTATO'] ? row['ULTIMO CONTATO'].split(' ')[0] : '-'}</td>
+                    <td class="p-1 text-center cursor-pointer" onclick="alternarLinha(${row.ID})"><span class="bg-slate-100 px-1 rounded-sm text-[8px] border">${row.STATUS || ''}</span></td>
                 `;
-                tr.onclick = () => { if(!row.cor) { row.cor = 'vermelho'; render(); } else if(confirm("Remover marcação?")) { row.cor = ''; render(); } };
                 body.appendChild(tr);
             });
 
             document.getElementById('infoResumo').innerText = `LISTADOS: ${filtrados.length}`;
             document.getElementById('countPendentes').innerText = dados.filter(d => d.cor === '').length;
             atualizarContadorSelecao();
+        }
+
+        function alternarLinha(id) {
+            const item = dados.find(d => d.ID === id);
+            if(!item.cor) { 
+                item.cor = 'vermelho'; 
+            } else if(confirm("Remover marcação colorida?")) { 
+                item.cor = ''; 
+            }
+            render();
         }
 
         function updateSel(id, v) { const i = dados.find(d => d.ID === id); if(i) i.selecionado = v; atualizarContadorSelecao(); }
@@ -222,7 +236,7 @@
 
         function finalizarTurno() {
             const tempoGasto = cronoEl.innerText.replace('TEMPO: ', '');
-            alert(`--- RESUMO DO TURNO ---\n\nE-mails Enviados: ${totalEnviadosContador}\nTempo Total Trabalhado: ${tempoGasto}\n\nA página será reiniciada para nova planilha.`);
+            alert(`--- RELATÓRIO DE PRODUÇÃO ---\n\nE-mails Enviados: ${totalEnviadosContador}\nTempo Total: ${tempoGasto}\n\nA página será reiniciada.`);
             location.reload();
         }
 
