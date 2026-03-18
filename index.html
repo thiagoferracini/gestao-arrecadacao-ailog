@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Arrecadação Ailog - v9</title>
+    <title>Gestão de Ações de envio de e-mail - Ailog - v10</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -15,12 +15,12 @@
         th { position: sticky; top: 0; background: #f8fafc; z-index: 10; border-bottom: 2px solid #e2e8f0; padding: 6px !important; }
         td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; padding: 4px !important; }
         .cnpj-cell { cursor: pointer; text-decoration: underline; color: #2563eb; font-weight: bold; }
-        .copy-badge { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e3a8a; color: white; padding: 5px 15px; border-radius: 20px; z-index: 100; display: none; }
+        .copy-badge { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e3a8a; color: white; padding: 5px 15px; border-radius: 20px; z-index: 100; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body class="bg-slate-100 p-2">
 
-    <div id="copyAlert" class="copy-badge text-[10px] font-bold uppercase">CNPJ Copiado - Linha em Azul</div>
+    <div id="copyAlert" class="copy-badge text-[10px] font-bold uppercase">CNPJ Copiado com Formatação</div>
 
     <div class="max-w-[100%] mx-auto">
         <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-blue-600">
@@ -92,7 +92,6 @@
         function carregarPlanilha(e) {
             const file = e.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = (evt) => {
                 try {
@@ -100,13 +99,9 @@
                     const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
                     const sheetName = wb.SheetNames[0];
                     const json = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
-                    
                     if(json.length > 0) iniciarSistema(json);
-                    else alert("A planilha parece estar vazia.");
-                } catch (err) {
-                    console.error(err);
-                    alert("Erro ao processar o arquivo. Tente salvar como .xlsx novamente.");
-                }
+                    else alert("A planilha está vazia.");
+                } catch (err) { alert("Erro ao processar o arquivo."); }
             };
             reader.readAsBinaryString(file);
         }
@@ -128,8 +123,7 @@
                 ...r,
                 tempId: i,
                 cor: "",
-                selecionado: false,
-                CNPJ_Limpo: String(r['CNPJ'] || '').replace(/\D/g, '')
+                selecionado: false
             }));
 
             tempoInicio = new Date();
@@ -153,8 +147,9 @@
             render();
         }
 
-        function copiarECor(id, cnpj) {
-            navigator.clipboard.writeText(cnpj).then(() => {
+        // COPIAR COM FORMATAÇÃO E MUDAR PARA AZUL
+        function copiarECor(id, cnpjFormatado) {
+            navigator.clipboard.writeText(cnpjFormatado).then(() => {
                 const alertEl = document.getElementById('copyAlert');
                 alertEl.style.display = 'block';
                 setTimeout(() => { alertEl.style.display = 'none'; }, 1200);
@@ -182,15 +177,19 @@
             filtrados.forEach(row => {
                 const tr = document.createElement('tr');
                 tr.className = `border-b hover:bg-slate-50 ${row.cor === 'azul' ? 'row-blue' : row.cor === 'verde' ? 'row-green' : row.cor === 'vermelho' ? 'row-red' : ''}`;
+                
+                // Formatação visual da data
+                const dataExibicao = row['ULTIMO CONTATO'] ? (row['ULTIMO CONTATO'] instanceof Date ? row['ULTIMO CONTATO'].toLocaleDateString('pt-BR') : String(row['ULTIMO CONTATO']).split(' ')[0]) : '-';
+
                 tr.innerHTML = `
                     <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onclick="updateSel(${row.tempId}, this.checked)"></td>
                     <td class="text-slate-400">${row.ID || ''}</td>
-                    <td class="cnpj-cell" onclick="copiarECor(${row.tempId}, '${row.CNPJ_Limpo}')">${row.CNPJ || ''}</td>
+                    <td class="cnpj-cell" onclick="copiarECor(${row.tempId}, '${row.CNPJ}')">${row.CNPJ || ''}</td>
                     <td class="font-bold">${row['RAZÃO SOCIAL'] || ''}</td>
                     <td class="italic text-slate-600">${row['REDE ESTABELECIMENTO'] || '-'}</td>
                     <td>${row['USUARIO RESPONSAVEL'] || ''}</td>
                     <td class="text-right text-red-600 font-mono">R$${row['VALOR PENDENTE'] || 0}</td>
-                    <td class="text-center">${row['ULTIMO CONTATO'] ? (row['ULTIMO CONTATO'] instanceof Date ? row['ULTIMO CONTATO'].toLocaleDateString('pt-BR') : String(row['ULTIMO CONTATO']).split(' ')[0]) : '-'}</td>
+                    <td class="text-center">${dataExibicao}</td>
                     <td class="text-center"><span class="bg-white px-1 rounded-sm border text-[8px]">${row.STATUS || ''}</span></td>
                 `;
                 body.appendChild(tr);
@@ -227,7 +226,7 @@
         }
 
         function finalizarTurno() {
-            alert(`RESUMO:\nEnviados: ${totalEnviadosContador}\nTempo: ${document.getElementById('cronometro').innerText}\n\nA página será reiniciada.`);
+            alert(`RELATÓRIO FINAL:\nEnviados: ${totalEnviadosContador}\nTempo: ${document.getElementById('cronometro').innerText}\n\nA página será reiniciada.`);
             location.reload();
         }
 
