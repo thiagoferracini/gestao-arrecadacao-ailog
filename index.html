@@ -3,26 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Arrecadação Ailog - v7</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Gestão de Arrecadação Ailog - v8</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-size: 0.7rem; }
-        /* Cores das Linhas */
-        .row-blue { background-color: #dbeafe !important; color: #1e3a8a; } /* Em atendimento */
-        .row-green { background-color: #dcfce7 !important; color: #166534; } /* Enviado */
-        .row-red { background-color: #fee2e2 !important; color: #991b1b; } /* Não disparar */
-        
+        .row-blue { background-color: #dbeafe !important; color: #1e3a8a; }
+        .row-green { background-color: #dcfce7 !important; color: #166534; }
+        .row-red { background-color: #fee2e2 !important; color: #991b1b; }
         .table-container { max-height: 70vh; overflow-y: auto; border: 1px solid #e5e7eb; }
         th { position: sticky; top: 0; background: #f8fafc; z-index: 10; border-bottom: 2px solid #e2e8f0; }
-        td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; }
-        
-        /* Alerta de Cópia */
+        td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; padding: 4px !important; }
         .copy-badge { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e3a8a; color: white; padding: 5px 15px; border-radius: 20px; z-index: 100; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        
-        /* Estilo do CNPJ clicável */
-        .cnpj-cell { cursor: pointer; text-decoration: underline; color: #2563eb; }
-        .cnpj-cell:hover { color: #1e40af; background-color: #eff6ff; }
+        .cnpj-cell { cursor: pointer; text-decoration: underline; color: #2563eb; font-weight: bold; }
     </style>
 </head>
 <body class="bg-slate-100 p-2">
@@ -33,34 +26,22 @@
         <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-blue-600">
             <div class="flex items-center gap-4">
                 <h1 class="font-bold text-slate-700 uppercase tracking-tight">Painel Arrecadação Ailog</h1>
-                <div id="cronometro" class="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 hidden">
-                    TEMPO: 00:00:00
-                </div>
+                <div id="cronometro" class="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 hidden">TEMPO: 00:00:00</div>
             </div>
             
             <div class="flex gap-2">
                 <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
-                <label for="fileInput" id="labelImport" class="bg-slate-700 text-white px-3 py-1 rounded cursor-pointer hover:bg-slate-800 transition text-[10px]">
-                    IMPORTAR PLANILHA
-                </label>
-                <button id="btnNaoDisparar" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 hidden text-[10px]">
-                    NÃO DISPARAR (<span class="countSel">0</span>)
-                </button>
-                <button id="btnEmailEnviado" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 hidden text-[10px]">
-                    E-MAIL ENVIADO (<span class="countSel">0</span>)
-                </button>
-                <button id="btnZerar" class="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 hidden text-[10px] font-bold">
-                    FINALIZAR / ZERAR
-                </button>
+                <label for="fileInput" id="labelImport" class="bg-slate-700 text-white px-3 py-1 rounded cursor-pointer hover:bg-slate-800 transition text-[10px]">IMPORTAR PLANILHA</label>
+                <button id="btnNaoDisparar" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 hidden text-[10px]">NÃO DISPARAR (<span class="countSel">0</span>)</button>
+                <button id="btnEmailEnviado" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 hidden text-[10px]">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
+                <button id="btnZerar" class="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 hidden text-[10px] font-bold">FINALIZAR / ZERAR</button>
             </div>
         </header>
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2 bg-white p-2 rounded shadow-sm">
             <div class="flex items-center gap-2 border-r pr-2">
                 <span class="font-bold text-slate-500">Analista:</span>
-                <select id="filtroAnalista" class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none">
-                    <option value="todos">Todos</option>
-                </select>
+                <select id="filtroAnalista" class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none"><option value="todos">Todos</option></select>
             </div>
             <div class="flex items-center gap-2 border-r pr-2">
                 <span class="font-bold text-slate-500">Busca:</span>
@@ -70,9 +51,7 @@
                 <div class="text-green-700 font-bold">ENVIADOS: <span id="totalEnviados">0</span></div>
                 <div class="text-slate-500 italic">PENDENTES: <span id="countPendentes">0</span></div>
             </div>
-            <div class="flex items-center justify-end text-blue-600 font-mono font-bold">
-                <span id="infoResumo">Aguardando planilha...</span>
-            </div>
+            <div class="flex items-center justify-end text-blue-600 font-mono font-bold"><span id="infoResumo">Aguardando planilha...</span></div>
         </div>
 
         <div id="mainTable" class="bg-white rounded shadow-sm table-container hidden">
@@ -81,4 +60,187 @@
                     <tr class="text-[9px] text-slate-500">
                         <th class="w-8 p-1 text-center"><input type="checkbox" id="selectAll"></th>
                         <th class="w-10 p-1 text-left">ID</th>
-                        <th
+                        <th class="w-24 p-1 text-left">CNPJ (COPIAR)</th>
+                        <th class="p-1 text-left">RAZÃO SOCIAL</th>
+                        <th class="w-28 p-1 text-left bg-blue-50">REDE</th>
+                        <th class="w-24 p-1 text-left">RESPONSÁVEL</th>
+                        <th class="w-16 p-1 text-right text-red-500">PENDENTE</th>
+                        <th class="w-18 p-1 text-center">ÚLT. CONTATO</th>
+                        <th class="w-16 p-1 text-center">STATUS</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="text-[10px] text-slate-700"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let dados = [];
+        let totalEnviadosContador = 0;
+        let tempoInicio = null;
+        let intervaloCronometro = null;
+        const hoje = new Date();
+
+        const btnZerar = document.getElementById('btnZerar');
+        const cronoEl = document.getElementById('cronometro');
+        const totalEnviadosEl = document.getElementById('totalEnviados');
+
+        document.getElementById('fileInput').addEventListener('change', carregarPlanilha);
+        document.getElementById('filtroAnalista').addEventListener('change', render);
+        document.getElementById('buscaGlobal').addEventListener('input', render);
+        document.getElementById('selectAll').addEventListener('change', toggleTodosVisiveis);
+        document.getElementById('btnNaoDisparar').addEventListener('click', () => acaoEmMassa('vermelho'));
+        document.getElementById('btnEmailEnviado').addEventListener('click', () => acaoEmMassa('verde'));
+        btnZerar.addEventListener('click', finalizarTurno);
+
+        function carregarPlanilha(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = evt.target.result;
+                    const wb = XLSX.read(data, { type: 'binary' });
+                    const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                    if(json.length === 0) alert("Planilha vazia!");
+                    else iniciarSistema(json);
+                } catch (err) {
+                    console.error(err);
+                    alert("Erro ao ler o arquivo. Verifique se é um Excel válido.");
+                }
+            };
+            reader.readAsBinaryString(file);
+        }
+
+        function tratarDataExcel(dataInput) {
+            if (!dataInput) return new Date(2000, 0, 1);
+            if (typeof dataInput === 'number') return new Date((dataInput - 25569) * 86400000);
+            const partes = String(dataInput).split(' ')[0].split('/');
+            if (partes.length === 3) return new Date(partes[2], partes[1] - 1, partes[0]);
+            return new Date(2000, 0, 1);
+        }
+
+        function iniciarSistema(rows) {
+            dados = rows.filter(r => {
+                const dataC = tratarDataExcel(r['ULTIMO CONTATO']);
+                const dif = Math.ceil(Math.abs(hoje - dataC) / (1000 * 60 * 60 * 24));
+                return dif > 7;
+            }).map((r, index) => ({ 
+                ...r, 
+                tempId: index, 
+                cor: '', 
+                selecionado: false,
+                CNPJ_Limpo: String(r['CNPJ'] || '').replace(/\D/g, '')
+            }));
+
+            totalEnviadosContador = 0;
+            totalEnviadosEl.innerText = "0";
+            tempoInicio = new Date();
+            if(intervaloCronometro) clearInterval(intervaloCronometro);
+            intervaloCronometro = setInterval(atualizarTempo, 1000);
+            cronoEl.classList.remove('hidden');
+
+            const analistas = [...new Set(dados.map(d => d['USUARIO RESPONSAVEL']))].sort();
+            const combo = document.getElementById('filtroAnalista');
+            combo.innerHTML = '<option value="todos">Todos</option>';
+            analistas.forEach(a => { if(a) combo.innerHTML += `<option value="${a}">${a}</option>`; });
+
+            document.getElementById('mainTable').classList.remove('hidden');
+            document.getElementById('btnNaoDisparar').classList.remove('hidden');
+            document.getElementById('btnEmailEnviado').classList.remove('hidden');
+            btnZerar.classList.remove('hidden');
+            document.getElementById('labelImport').classList.add('hidden');
+            render();
+        }
+
+        function atualizarTempo() {
+            const diff = new Date(new Date() - tempoInicio);
+            cronoEl.innerText = `TEMPO: ${String(diff.getUTCHours()).padStart(2,'0')}:${String(diff.getUTCMinutes()).padStart(2,'0')}:${String(diff.getUTCSeconds()).padStart(2,'0')}`;
+        }
+
+        function copiarECor(id, cnpj) {
+            navigator.clipboard.writeText(String(cnpj)).then(() => {
+                const alertEl = document.getElementById('copyAlert');
+                alertEl.style.display = 'block';
+                setTimeout(() => { alertEl.style.display = 'none'; }, 1200);
+                
+                const item = dados.find(d => d.tempId === id);
+                if (item && item.cor === '') {
+                    item.cor = 'azul';
+                    render();
+                }
+            });
+        }
+
+        function render() {
+            const analista = document.getElementById('filtroAnalista').value;
+            const busca = document.getElementById('buscaGlobal').value.toLowerCase();
+            const body = document.getElementById('tableBody');
+            body.innerHTML = '';
+
+            const filtrados = dados.filter(d => {
+                const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
+                const s = `${d.ID} ${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO']}`.toLowerCase();
+                return matchA && s.includes(busca);
+            });
+
+            filtrados.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = `border-b hover:bg-slate-50 ${row.cor === 'azul' ? 'row-blue' : row.cor === 'verde' ? 'row-green' : row.cor === 'vermelho' ? 'row-red' : ''}`;
+                tr.innerHTML = `
+                    <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onclick="updateSel(${row.tempId}, this.checked)"></td>
+                    <td class="text-slate-400">${row.ID || ''}</td>
+                    <td class="cnpj-cell" onclick="copiarECor(${row.tempId}, '${row.CNPJ_Limpo}')">${row.CNPJ || ''}</td>
+                    <td class="font-bold">${row['RAZÃO SOCIAL'] || ''}</td>
+                    <td class="italic text-slate-600">${row['REDE ESTABELECIMENTO'] || '-'}</td>
+                    <td>${row['USUARIO RESPONSAVEL'] || ''}</td>
+                    <td class="text-right text-red-600 font-mono">R$${row['VALOR PENDENTE'] || 0}</td>
+                    <td class="text-center">${row['ULTIMO CONTATO'] ? String(row['ULTIMO CONTATO']).split(' ')[0] : '-'}</td>
+                    <td class="text-center"><span class="bg-white px-1 rounded-sm border text-[8px]">${row.STATUS || ''}</span></td>
+                `;
+                body.appendChild(tr);
+            });
+            document.getElementById('infoResumo').innerText = `LISTADOS: ${filtrados.length}`;
+            document.getElementById('countPendentes').innerText = dados.filter(d => d.cor === '').length;
+            atualizarContadorSelecao();
+        }
+
+        function updateSel(id, v) { const i = dados.find(d => d.tempId === id); if(i) i.selecionado = v; atualizarContadorSelecao(); }
+
+        function toggleTodosVisiveis(e) {
+            const analista = document.getElementById('filtroAnalista').value;
+            const busca = document.getElementById('buscaGlobal').value.toLowerCase();
+            dados.forEach(d => {
+                const s = `${d.ID} ${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO']}`.toLowerCase();
+                if ((analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista) && s.includes(busca)) d.selecionado = e.target.checked;
+            });
+            render();
+        }
+
+        function acaoEmMassa(corDestino) {
+            const sel = dados.filter(d => d.selecionado);
+            if (sel.length === 0) return alert("Selecione itens primeiro.");
+            if (confirm(`Confirmar ação para ${sel.length} postos?`)) {
+                sel.forEach(d => {
+                    if (corDestino === 'verde' && d.cor !== 'verde') totalEnviadosContador++;
+                    if (corDestino === 'vermelho' && d.cor === 'verde') totalEnviadosContador--;
+                    d.cor = corDestino;
+                    d.selecionado = false;
+                });
+                totalEnviadosEl.innerText = totalEnviadosContador;
+                render();
+            }
+        }
+
+        function finalizarTurno() {
+            alert(`--- RELATÓRIO ---\nEnviados: ${totalEnviadosContador}\nTempo: ${cronoEl.innerText}\n\nA página será reiniciada.`);
+            location.reload();
+        }
+
+        function atualizarContadorSelecao() {
+            const t = dados.filter(d => d.selecionado).length;
+            document.querySelectorAll('.countSel').forEach(el => el.innerText = t);
+        }
+    </script>
+</body>
+</html>
