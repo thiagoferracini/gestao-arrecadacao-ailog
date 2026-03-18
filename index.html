@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Arrecadação Ailog - v11</title>
+    <title>Gestão de Arrecadação Ailog - v12</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -16,6 +16,7 @@
         td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; padding: 4px !important; }
         .cnpj-cell { cursor: pointer; text-decoration: underline; color: #2563eb; font-weight: bold; }
         .copy-badge { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e3a8a; color: white; padding: 5px 15px; border-radius: 20px; z-index: 100; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .btn-toggle-active { background-color: #1e3a8a !important; color: white !important; border: 1px solid #1e3a8a; }
     </style>
 </head>
 <body class="bg-slate-100 p-2">
@@ -32,6 +33,11 @@
             <div class="flex gap-2">
                 <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
                 <label for="fileInput" id="labelImport" class="bg-slate-700 text-white px-4 py-1.5 rounded cursor-pointer hover:bg-slate-800 transition text-[10px] font-bold">IMPORTAR PLANILHA</label>
+                
+                <button id="btnFiltroAcao" class="bg-white text-slate-700 border border-slate-300 px-3 py-1 rounded hover:bg-slate-50 hidden text-[10px] font-bold flex items-center gap-1">
+                    <span id="filtroStatusIcon">👁️</span> EXIBIR APENAS PENDENTES
+                </button>
+
                 <button id="btnNaoDisparar" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 hidden text-[10px]">NÃO DISPARAR (<span class="countSel">0</span>)</button>
                 <button id="btnEmailEnviado" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 hidden text-[10px]">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
                 <button id="btnZerar" class="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 hidden text-[10px] font-bold">FINALIZAR / ZERAR</button>
@@ -49,7 +55,7 @@
             </div>
             <div class="flex items-center gap-4 px-2 border-r text-[11px]">
                 <div class="text-green-700 font-bold">ENVIADOS: <span id="totalEnviados">0</span></div>
-                <div class="text-slate-500 italic">PENDENTES: <span id="countPendentes">0</span></div>
+                <div class="text-slate-500 italic">NA LISTA: <span id="countPendentes">0</span></div>
             </div>
             <div class="flex items-center justify-end text-blue-600 font-mono font-bold">
                 <span id="infoResumo" class="text-[10px]">Aguardando arquivo...</span>
@@ -81,6 +87,7 @@
         let totalEnviadosContador = 0;
         let tempoInicio = null;
         let intervaloCronometro = null;
+        let filtroPendentesAtivo = false;
         const hoje = new Date();
 
         document.getElementById('fileInput').addEventListener('change', carregarPlanilha);
@@ -90,6 +97,7 @@
         document.getElementById('btnNaoDisparar').addEventListener('click', () => acaoEmMassa('vermelho'));
         document.getElementById('btnEmailEnviado').addEventListener('click', () => acaoEmMassa('verde'));
         document.getElementById('btnZerar').addEventListener('click', finalizarTurno);
+        document.getElementById('btnFiltroAcao').addEventListener('click', toggleFiltroPendentes);
 
         function carregarPlanilha(e) {
             const file = e.target.files[0];
@@ -114,12 +122,10 @@
         }
 
         function iniciarSistema(rows) {
-            // FILTRAGEM DUPLA: Status "ATUALIZADO" AND Último contato > 7 dias
             dados = rows.filter(r => {
                 const statusVal = String(r['STATUS'] || "").toUpperCase();
                 const dataC = tratarData(r['ULTIMO CONTATO']);
                 const difDias = Math.ceil(Math.abs(hoje - dataC) / (1000 * 60 * 60 * 24));
-                
                 return statusVal === "ATUALIZADO" && difDias > 7;
             }).map((r, i) => ({
                 ...r,
@@ -147,10 +153,24 @@
 
             document.getElementById('mainTable').classList.remove('hidden');
             document.getElementById('cronometro').classList.remove('hidden');
+            document.getElementById('btnFiltroAcao').classList.remove('hidden');
             document.getElementById('btnNaoDisparar').classList.remove('hidden');
             document.getElementById('btnEmailEnviado').classList.remove('hidden');
             document.getElementById('btnZerar').classList.remove('hidden');
             document.getElementById('labelImport').classList.add('hidden');
+            render();
+        }
+
+        function toggleFiltroPendentes() {
+            filtroPendentesAtivo = !filtroPendentesAtivo;
+            const btn = document.getElementById('btnFiltroAcao');
+            if(filtroPendentesAtivo) {
+                btn.classList.add('btn-toggle-active');
+                btn.innerHTML = '👁️ EXIBINDO APENAS O QUE FALTA';
+            } else {
+                btn.classList.remove('btn-toggle-active');
+                btn.innerHTML = '👁️ EXIBIR APENAS PENDENTES';
+            }
             render();
         }
 
@@ -176,8 +196,12 @@
 
             const filtrados = dados.filter(d => {
                 const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const s = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO']}`.toLowerCase();
-                return matchA && s.includes(busca);
+                const matchB = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO']}`.toLowerCase().includes(busca);
+                
+                // Lógica do novo filtro: Se ativo, esconde VERDE e VERMELHO
+                const matchStatus = filtroPendentesAtivo ? (d.cor !== 'verde' && d.cor !== 'vermelho') : true;
+
+                return matchA && matchB && matchStatus;
             });
 
             filtrados.forEach(row => {
@@ -198,8 +222,8 @@
                 `;
                 body.appendChild(tr);
             });
-            document.getElementById('infoResumo').innerText = `LISTADOS: ${filtrados.length} (Filtrado: ATUALIZADO)`;
-            document.getElementById('countPendentes').innerText = dados.filter(d => d.cor === '').length;
+            document.getElementById('infoResumo').innerText = `LISTADOS: ${filtrados.length}`;
+            document.getElementById('countPendentes').innerText = dados.length;
             atualizarContadorSelecao();
         }
 
@@ -210,7 +234,8 @@
             const busca = document.getElementById('buscaGlobal').value.toLowerCase();
             dados.forEach(d => {
                 const s = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO']}`.toLowerCase();
-                if ((analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista) && s.includes(busca)) d.selecionado = e.target.checked;
+                const matchStatus = filtroPendentesAtivo ? (d.cor !== 'verde' && d.cor !== 'vermelho') : true;
+                if ((analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista) && s.includes(busca) && matchStatus) d.selecionado = e.target.checked;
             });
             render();
         }
