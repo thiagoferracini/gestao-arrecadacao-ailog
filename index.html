@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Controle de Ações - Ailog - v10</title>
+    <title>Gestão de Arrecadação Ailog - v11</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -51,7 +51,9 @@
                 <div class="text-green-700 font-bold">ENVIADOS: <span id="totalEnviados">0</span></div>
                 <div class="text-slate-500 italic">PENDENTES: <span id="countPendentes">0</span></div>
             </div>
-            <div class="flex items-center justify-end text-blue-600 font-mono font-bold"><span id="infoResumo">Aguardando arquivo...</span></div>
+            <div class="flex items-center justify-end text-blue-600 font-mono font-bold">
+                <span id="infoResumo" class="text-[10px]">Aguardando arquivo...</span>
+            </div>
         </div>
 
         <div id="mainTable" class="bg-white rounded shadow-sm table-container hidden">
@@ -97,11 +99,9 @@
                 try {
                     const bstr = evt.target.result;
                     const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
-                    const sheetName = wb.SheetNames[0];
-                    const json = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+                    const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
                     if(json.length > 0) iniciarSistema(json);
-                    else alert("A planilha está vazia.");
-                } catch (err) { alert("Erro ao processar o arquivo."); }
+                } catch (err) { alert("Erro ao ler planilha."); }
             };
             reader.readAsBinaryString(file);
         }
@@ -110,21 +110,28 @@
             if (val instanceof Date) return val;
             if (!val) return new Date(2000, 0, 1);
             const p = String(val).split(' ')[0].split('/');
-            if (p.length === 3) return new Date(p[2], p[1]-1, p[0]);
-            return new Date(2000, 0, 1);
+            return p.length === 3 ? new Date(p[2], p[1]-1, p[0]) : new Date(2000, 0, 1);
         }
 
         function iniciarSistema(rows) {
+            // FILTRAGEM DUPLA: Status "ATUALIZADO" AND Último contato > 7 dias
             dados = rows.filter(r => {
+                const statusVal = String(r['STATUS'] || "").toUpperCase();
                 const dataC = tratarData(r['ULTIMO CONTATO']);
-                const dif = Math.ceil(Math.abs(hoje - dataC) / (1000 * 60 * 60 * 24));
-                return dif > 7;
+                const difDias = Math.ceil(Math.abs(hoje - dataC) / (1000 * 60 * 60 * 24));
+                
+                return statusVal === "ATUALIZADO" && difDias > 7;
             }).map((r, i) => ({
                 ...r,
                 tempId: i,
                 cor: "",
                 selecionado: false
             }));
+
+            if(dados.length === 0) {
+                alert("Nenhum registro encontrado com status 'ATUALIZADO' e prazo superior a 7 dias.");
+                return;
+            }
 
             tempoInicio = new Date();
             if(intervaloCronometro) clearInterval(intervaloCronometro);
@@ -147,7 +154,6 @@
             render();
         }
 
-        // COPIAR COM FORMATAÇÃO E MUDAR PARA AZUL
         function copiarECor(id, cnpjFormatado) {
             navigator.clipboard.writeText(cnpjFormatado).then(() => {
                 const alertEl = document.getElementById('copyAlert');
@@ -177,9 +183,7 @@
             filtrados.forEach(row => {
                 const tr = document.createElement('tr');
                 tr.className = `border-b hover:bg-slate-50 ${row.cor === 'azul' ? 'row-blue' : row.cor === 'verde' ? 'row-green' : row.cor === 'vermelho' ? 'row-red' : ''}`;
-                
-                // Formatação visual da data
-                const dataExibicao = row['ULTIMO CONTATO'] ? (row['ULTIMO CONTATO'] instanceof Date ? row['ULTIMO CONTATO'].toLocaleDateString('pt-BR') : String(row['ULTIMO CONTATO']).split(' ')[0]) : '-';
+                const dataEx = row['ULTIMO CONTATO'] ? (row['ULTIMO CONTATO'] instanceof Date ? row['ULTIMO CONTATO'].toLocaleDateString('pt-BR') : String(row['ULTIMO CONTATO']).split(' ')[0]) : '-';
 
                 tr.innerHTML = `
                     <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onclick="updateSel(${row.tempId}, this.checked)"></td>
@@ -189,12 +193,12 @@
                     <td class="italic text-slate-600">${row['REDE ESTABELECIMENTO'] || '-'}</td>
                     <td>${row['USUARIO RESPONSAVEL'] || ''}</td>
                     <td class="text-right text-red-600 font-mono">R$${row['VALOR PENDENTE'] || 0}</td>
-                    <td class="text-center">${dataExibicao}</td>
+                    <td class="text-center">${dataEx}</td>
                     <td class="text-center"><span class="bg-white px-1 rounded-sm border text-[8px]">${row.STATUS || ''}</span></td>
                 `;
                 body.appendChild(tr);
             });
-            document.getElementById('infoResumo').innerText = `LISTADOS: ${filtrados.length}`;
+            document.getElementById('infoResumo').innerText = `LISTADOS: ${filtrados.length} (Filtrado: ATUALIZADO)`;
             document.getElementById('countPendentes').innerText = dados.filter(d => d.cor === '').length;
             atualizarContadorSelecao();
         }
@@ -226,7 +230,7 @@
         }
 
         function finalizarTurno() {
-            alert(`RELATÓRIO FINAL:\nEnviados: ${totalEnviadosContador}\nTempo: ${document.getElementById('cronometro').innerText}\n\nA página será reiniciada.`);
+            alert(`RELATÓRIO:\nEnviados: ${totalEnviadosContador}\nTempo: ${document.getElementById('cronometro').innerText}\n\nPágina reiniciada.`);
             location.reload();
         }
 
