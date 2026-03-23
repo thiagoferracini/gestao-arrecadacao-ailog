@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel Arrecadação Ailog - Estratégico v14</title>
+    <title>Painel Arrecadação Ailog - Estratégico v15</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-size: 0.7rem; }
@@ -21,7 +21,7 @@
     <div class="max-w-[100%] mx-auto">
         <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-blue-600">
             <div class="flex items-center gap-4">
-                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Painel Arrecadação - Estratégico</h1>
+                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Painel Arrecadação - Redes & Performance</h1>
                 <div id="cronometro" class="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100">TEMPO: 00:00:00</div>
             </div>
             
@@ -40,12 +40,12 @@
             </div>
             <div class="flex items-center gap-2 border-r pr-2">
                 <span class="font-bold text-slate-500">Busca:</span>
-                <input type="text" id="busca" oninput="render()" placeholder="CNPJ ou Razão..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none">
+                <input type="text" id="busca" oninput="render()" placeholder="CNPJ, Razão ou Rede..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none">
             </div>
             <div class="flex items-center gap-4 px-2 border-r text-[11px]">
                 <div class="text-green-700 font-bold">CONCLUÍDOS: <span id="totalEnviados">0</span></div>
             </div>
-            <div class="flex items-center justify-end text-blue-600 font-mono font-bold"><span id="resumo">Conectando...</span></div>
+            <div class="flex items-center justify-end text-blue-600 font-mono font-bold"><span id="resumo">Sincronizando...</span></div>
         </div>
 
         <div id="mainTable" class="bg-white rounded shadow-sm table-container">
@@ -55,6 +55,7 @@
                         <th class="w-8 p-1 text-center"><input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)"></th>
                         <th class="w-24 p-1 text-left">CNPJ</th>
                         <th class="p-1 text-left">RAZÃO SOCIAL</th>
+                        <th class="w-28 p-1 text-left bg-blue-50/30">REDE</th>
                         <th class="w-24 p-1 text-left">RESPONSÁVEL</th>
                         <th class="w-18 p-1 text-right text-red-500">PENDENTE</th>
                         <th class="w-18 p-1 text-center">ÚLT. CONTATO</th>
@@ -71,14 +72,13 @@
         let tempoInicio = new Date();
         let filtroPendentesAtivo = false;
 
-        // Inicia Cronômetro
         setInterval(() => {
             const diff = new Date(new Date() - tempoInicio);
             document.getElementById('cronometro').innerText = `TEMPO: ${String(diff.getUTCHours()).padStart(2,'0')}:${String(diff.getUTCMinutes()).padStart(2,'0')}:${String(diff.getUTCSeconds()).padStart(2,'0')}`;
         }, 1000);
 
         async function baixarDados() {
-            document.getElementById('resumo').innerText = "Sincronizando...";
+            document.getElementById('resumo').innerText = "Buscando...";
             try {
                 const r = await fetch(URL_SCRIPT);
                 const raw = await r.json();
@@ -86,12 +86,10 @@
                 const hoje = new Date();
                 dados = raw.filter(r => {
                     const status = String(r['STATUS'] || "").toUpperCase();
-                    // Regra de 7 dias
                     const dataC = parseData(r['ULTIMO CONTATO']);
                     const difDias = Math.ceil(Math.abs(hoje - dataC) / (1000 * 60 * 60 * 24));
                     return status === "ATUALIZADO" && difDias > 7;
                 })
-                // Regra: Maior valor para o menor
                 .sort((a, b) => parseFloat(b['VALOR PENDENTE'] || 0) - parseFloat(a['VALOR PENDENTE'] || 0));
 
                 const analistas = [...new Set(dados.map(d => d['USUARIO RESPONSAVEL']))].sort();
@@ -100,7 +98,7 @@
                 analistas.forEach(a => { if(a) combo.innerHTML += `<option value="${a}">${a}</option>`; });
 
                 render();
-            } catch (e) { alert("Erro ao conectar."); }
+            } catch (e) { alert("Erro de conexão."); }
         }
 
         function parseData(val) {
@@ -123,7 +121,9 @@
 
             const filtrados = dados.filter(d => {
                 const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const matchB = d.CNPJ.includes(busca) || d['RAZÃO SOCIAL'].toLowerCase().includes(busca);
+                // Busca expandida: CNPJ, Razão ou Rede
+                const buscaTexto = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
+                const matchB = buscaTexto.includes(busca);
                 const matchPendente = filtroPendentesAtivo ? (!d['ACAO_SISTEMA'] || d['ACAO_SISTEMA'] === "") : true;
                 return matchA && matchB && matchPendente;
             });
@@ -137,6 +137,7 @@
                     <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onchange="updateSel('${row.CNPJ}', this.checked)"></td>
                     <td class="cnpj-cell" onclick="copiar('${row.CNPJ}')">${row.CNPJ}</td>
                     <td class="font-bold">${row['RAZÃO SOCIAL']}</td>
+                    <td class="italic text-slate-500">${row['REDE ESTABELECIMENTO'] || '-'}</td>
                     <td>${row['USUARIO RESPONSAVEL']}</td>
                     <td class="text-right text-red-600 font-mono">R$${row['VALOR PENDENTE'] || 0}</td>
                     <td class="text-center">${row['ULTIMO CONTATO'] || '-'}</td>
@@ -156,7 +157,7 @@
         async function salvarAcao(cor) {
             const sel = dados.filter(d => d.selecionado);
             if(sel.length === 0) return;
-            if(!confirm(`Salvar ${sel.length} itens na nuvem?`)) return;
+            if(!confirm(`Sincronizar ${sel.length} itens?`)) return;
 
             document.getElementById('resumo').innerText = "Salvando...";
             for (let item of sel) {
@@ -165,7 +166,7 @@
                 item.selecionado = false;
             }
             render();
-            alert("Nuvem atualizada!");
+            alert("Sucesso!");
         }
 
         function copiar(txt) {
@@ -176,8 +177,14 @@
 
         function toggleAll(v) {
             const analista = document.getElementById('filtroAnalista').value;
+            const busca = document.getElementById('busca').value.toLowerCase();
             dados.forEach(d => {
-                if(analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista) d.selecionado = v;
+                const buscaTexto = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
+                const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
+                const matchB = buscaTexto.includes(busca);
+                const matchPendente = filtroPendentesAtivo ? (!d['ACAO_SISTEMA'] || d['ACAO_SISTEMA'] === "") : true;
+                
+                if(matchA && matchB && matchPendente) d.selecionado = v;
             });
             render();
         }
