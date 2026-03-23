@@ -2,7 +2,8 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel Arrecadação Ailog - Estratégico v15</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Arrecadação Ailog - Estratégico v16</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-size: 0.7rem; }
@@ -13,7 +14,9 @@
         th { position: sticky; top: 0; background: #f8fafc; z-index: 10; border-bottom: 2px solid #e2e8f0; padding: 6px !important; }
         td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; padding: 4px !important; }
         .cnpj-cell { cursor: pointer; text-decoration: underline; color: #2563eb; font-weight: bold; }
-        .btn-active { background-color: #1e3a8a !important; color: white !important; }
+        .btn-active { background-color: #1e3a8a !important; color: white !important; border: 1px solid #1e3a8a; }
+        .loader-active { animation: pulse 1.5s infinite; color: #2563eb; font-weight: bold; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
     </style>
 </head>
 <body class="bg-slate-100 p-2">
@@ -26,59 +29,74 @@
             </div>
             
             <div class="flex gap-2">
-                <button onclick="baixarDados()" class="bg-blue-600 text-white px-3 py-1.5 rounded text-[10px] font-bold hover:bg-blue-700">🔄 ATUALIZAR NUVEM</button>
-                <button id="btnFiltroPendentes" onclick="toggleFiltroPendentes()" class="bg-white text-slate-700 border border-slate-300 px-3 py-1 rounded text-[10px] font-bold">👁️ APENAS PENDENTES</button>
-                <button onclick="salvarAcao('VERMELHO')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[10px]">NÃO DISPARAR (<span class="countSel">0</span>)</button>
-                <button onclick="salvarAcao('VERDE')" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-[10px]">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
+                <button onclick="baixarDados()" class="bg-blue-600 text-white px-3 py-1.5 rounded text-[10px] font-bold hover:bg-blue-700 transition">🔄 ATUALIZAR NUVEM</button>
+                <button id="btnFiltroPendentes" onclick="toggleFiltroPendentes()" class="bg-white text-slate-700 border border-slate-300 px-3 py-1 rounded text-[10px] font-bold hover:bg-slate-50">👁️ APENAS PENDENTES</button>
+                <button onclick="salvarAcao('VERMELHO')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[10px] font-bold shadow-sm">NÃO DISPARAR (<span class="countSel">0</span>)</button>
+                <button onclick="salvarAcao('VERDE')" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-[10px] font-bold shadow-sm">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
             </div>
         </header>
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2 bg-white p-2 rounded shadow-sm">
             <div class="flex items-center gap-2 border-r pr-2">
                 <span class="font-bold text-slate-500">Analista:</span>
-                <select id="filtroAnalista" onchange="render()" class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none"><option value="todos">Todos</option></select>
+                <select id="filtroAnalista" onchange="render()" class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none">
+                    <option value="todos">Todos</option>
+                </select>
             </div>
             <div class="flex items-center gap-2 border-r pr-2">
                 <span class="font-bold text-slate-500">Busca:</span>
                 <input type="text" id="busca" oninput="render()" placeholder="CNPJ, Razão ou Rede..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none">
             </div>
             <div class="flex items-center gap-4 px-2 border-r text-[11px]">
-                <div class="text-green-700 font-bold">CONCLUÍDOS: <span id="totalEnviados">0</span></div>
+                <div class="text-green-700 font-bold uppercase">Concluídos: <span id="totalEnviados">0</span></div>
             </div>
-            <div class="flex items-center justify-end text-blue-600 font-mono font-bold"><span id="resumo">Sincronizando...</span></div>
+            <div class="flex items-center justify-end text-blue-600 font-mono font-bold">
+                <span id="resumo" class="uppercase">Sincronizando banco de dados...</span>
+            </div>
         </div>
 
         <div id="mainTable" class="bg-white rounded shadow-sm table-container">
             <table class="min-w-full table-fixed border-collapse">
                 <thead>
-                    <tr class="text-[9px] text-slate-500 uppercase">
+                    <tr class="text-[9px] text-slate-500 uppercase bg-slate-50">
                         <th class="w-8 p-1 text-center"><input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)"></th>
                         <th class="w-24 p-1 text-left">CNPJ</th>
                         <th class="p-1 text-left">RAZÃO SOCIAL</th>
-                        <th class="w-28 p-1 text-left bg-blue-50/30">REDE</th>
+                        <th class="w-32 p-1 text-left bg-blue-50/50">REDE ESTABELECIMENTO</th>
                         <th class="w-24 p-1 text-left">RESPONSÁVEL</th>
-                        <th class="w-18 p-1 text-right text-red-500">PENDENTE</th>
+                        <th class="w-20 p-1 text-right text-red-500">VALOR PENDENTE</th>
                         <th class="w-18 p-1 text-center">ÚLT. CONTATO</th>
                     </tr>
                 </thead>
-                <tbody id="tableBody" class="text-[10px] text-slate-700"></tbody>
+                <tbody id="tableBody" class="text-[10px] text-slate-700">
+                    </tbody>
             </table>
         </div>
     </div>
 
     <script>
-        const URL_SCRIPT = "https://script.google.com/macros/s/AKfycbx7ZgKnvRz4OL4MhgNUEgVSy0ko3RoN5rQQx9A2T1TNHkS3rcmlsVxZgE8BK6nl3LM7_Q/exec"; 
+        // CONFIGURAÇÃO - COLOQUE SUA URL DO GOOGLE APPS SCRIPT AQUI
+        const URL_SCRIPT = "https://script.google.com/macros/s/AKfycbzTLydhGGcvI5qAHlBNEP9aX9IEy1RwDJJ8ThhZJI8UwVFe1U-Hx-gImIiSZjWLJxj7ow/exec"; 
+        
         let dados = [];
         let tempoInicio = new Date();
         let filtroPendentesAtivo = false;
 
+        // Inicia o Cronómetro de produtividade
         setInterval(() => {
             const diff = new Date(new Date() - tempoInicio);
-            document.getElementById('cronometro').innerText = `TEMPO: ${String(diff.getUTCHours()).padStart(2,'0')}:${String(diff.getUTCMinutes()).padStart(2,'0')}:${String(diff.getUTCSeconds()).padStart(2,'0')}`;
+            const h = String(diff.getUTCHours()).padStart(2,'0');
+            const m = String(diff.getUTCMinutes()).padStart(2,'0');
+            const s = String(diff.getUTCSeconds()).padStart(2,'0');
+            document.getElementById('cronometro').innerText = `TEMPO: ${h}:${m}:${s}`;
         }, 1000);
 
+        // Busca dados do Google Sheets
         async function baixarDados() {
-            document.getElementById('resumo').innerText = "Buscando...";
+            const resumoEl = document.getElementById('resumo');
+            resumoEl.innerText = "Buscando dados...";
+            resumoEl.classList.add('loader-active');
+            
             try {
                 const r = await fetch(URL_SCRIPT);
                 const raw = await r.json();
@@ -86,19 +104,30 @@
                 const hoje = new Date();
                 dados = raw.filter(r => {
                     const status = String(r['STATUS'] || "").toUpperCase();
+                    // Regra de 7 dias sem ação
                     const dataC = parseData(r['ULTIMO CONTATO']);
                     const difDias = Math.ceil(Math.abs(hoje - dataC) / (1000 * 60 * 60 * 24));
                     return status === "ATUALIZADO" && difDias > 7;
                 })
-                .sort((a, b) => parseFloat(b['VALOR PENDENTE'] || 0) - parseFloat(a['VALOR PENDENTE'] || 0));
+                // Regra de Ouro: Prioridade pelo maior valor pendente
+                .sort((a, b) => {
+                    const valA = parseFloat(String(a['VALOR PENDENTE']).replace(',','.')) || 0;
+                    const valB = parseFloat(String(b['VALOR PENDENTE']).replace(',','.')) || 0;
+                    return valB - valA;
+                });
 
+                // Atualiza lista de analistas no filtro
                 const analistas = [...new Set(dados.map(d => d['USUARIO RESPONSAVEL']))].sort();
                 const combo = document.getElementById('filtroAnalista');
                 combo.innerHTML = '<option value="todos">Todos</option>';
                 analistas.forEach(a => { if(a) combo.innerHTML += `<option value="${a}">${a}</option>`; });
 
                 render();
-            } catch (e) { alert("Erro de conexão."); }
+            } catch (e) { 
+                alert("Erro de conexão com a base de dados."); 
+            } finally {
+                resumoEl.classList.remove('loader-active');
+            }
         }
 
         function parseData(val) {
@@ -120,75 +149,115 @@
             body.innerHTML = '';
 
             const filtrados = dados.filter(d => {
-                const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                // Busca expandida: CNPJ, Razão ou Rede
-                const buscaTexto = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
-                const matchB = buscaTexto.includes(busca);
+                const matchAnalista = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
+                // Busca em CNPJ, Razão Social ou Rede
+                const textoParaBusca = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
+                const matchBusca = textoParaBusca.includes(busca);
+                // Filtro de Modo Foco
                 const matchPendente = filtroPendentesAtivo ? (!d['ACAO_SISTEMA'] || d['ACAO_SISTEMA'] === "") : true;
-                return matchA && matchB && matchPendente;
+                
+                return matchAnalista && matchBusca && matchPendente;
             });
 
             filtrados.forEach(row => {
                 const tr = document.createElement('tr');
-                const corClasse = row.cor_sessao === 'azul' ? 'row-blue' : row['ACAO_SISTEMA'] === 'VERDE' ? 'row-green' : row['ACAO_SISTEMA'] === 'VERMELHO' ? 'row-red' : '';
-                tr.className = `border-b hover:bg-slate-50 ${corClasse}`;
+                const acao = row['ACAO_SISTEMA'];
+                const corClasse = row.cor_sessao === 'azul' ? 'row-blue' : acao === 'VERDE' ? 'row-green' : acao === 'VERMELHO' ? 'row-red' : '';
                 
+                tr.className = `border-b hover:bg-slate-50 ${corClasse}`;
                 tr.innerHTML = `
                     <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onchange="updateSel('${row.CNPJ}', this.checked)"></td>
                     <td class="cnpj-cell" onclick="copiar('${row.CNPJ}')">${row.CNPJ}</td>
                     <td class="font-bold">${row['RAZÃO SOCIAL']}</td>
-                    <td class="italic text-slate-500">${row['REDE ESTABELECIMENTO'] || '-'}</td>
+                    <td class="italic text-slate-500 bg-blue-50/20">${row['REDE ESTABELECIMENTO'] || '-'}</td>
                     <td>${row['USUARIO RESPONSAVEL']}</td>
-                    <td class="text-right text-red-600 font-mono">R$${row['VALOR PENDENTE'] || 0}</td>
-                    <td class="text-center">${row['ULTIMO CONTATO'] || '-'}</td>
+                    <td class="text-right text-red-600 font-mono">R$ ${row['VALOR PENDENTE'] || '0,00'}</td>
+                    <td class="text-center">${String(row['ULTIMO CONTATO'] || '-').split(' ')[0]}</td>
                 `;
                 body.appendChild(tr);
             });
+
             document.getElementById('resumo').innerText = `LISTADOS: ${filtrados.length}`;
             document.getElementById('totalEnviados').innerText = dados.filter(d => d['ACAO_SISTEMA'] === 'VERDE').length;
+            atualizarContadorSelecao();
         }
 
         function updateSel(cnpj, v) {
             const item = dados.find(d => d.CNPJ === cnpj);
             if(item) item.selecionado = v;
-            document.querySelectorAll('.countSel').forEach(el => el.innerText = dados.filter(d => d.selecionado).length);
+            atualizarContadorSelecao();
         }
 
-        async function salvarAcao(cor) {
-            const sel = dados.filter(d => d.selecionado);
-            if(sel.length === 0) return;
-            if(!confirm(`Sincronizar ${sel.length} itens?`)) return;
+        function atualizarContadorSelecao() {
+            const total = dados.filter(d => d.selecionado).length;
+            document.querySelectorAll('.countSel').forEach(el => el.innerText = total);
+        }
 
-            document.getElementById('resumo').innerText = "Salvando...";
-            for (let item of sel) {
-                await fetch(URL_SCRIPT, { method: 'POST', body: JSON.stringify({ cnpj: item.CNPJ, cor: cor }) });
-                item['ACAO_SISTEMA'] = cor;
-                item.selecionado = false;
+        // SALVAMENTO EM LOTE (BATCH UPDATE) - OTIMIZADO
+        async function salvarAcao(cor) {
+            const selecionados = dados.filter(d => d.selecionado);
+            if (selecionados.length === 0) return alert("Selecione os postos primeiro.");
+            
+            if (!confirm(`Sincronizar ${selecionados.length} itens com o Google Sheets?`)) return;
+
+            const resumoEl = document.getElementById('resumo');
+            resumoEl.innerText = "Sincronizando lote...";
+            resumoEl.classList.add('loader-active');
+
+            const pacoteUpdate = selecionados.map(item => ({ cnpj: item.CNPJ, cor: cor }));
+
+            try {
+                const response = await fetch(URL_SCRIPT, {
+                    method: 'POST',
+                    body: JSON.stringify({ updates: pacoteUpdate })
+                });
+
+                if (response.ok) {
+                    selecionados.forEach(item => {
+                        item['ACAO_SISTEMA'] = cor;
+                        item.selecionado = false;
+                        item.cor_sessao = ''; 
+                    });
+                    render();
+                    document.getElementById('selectAll').checked = false;
+                    alert("Dados salvos com sucesso!");
+                }
+            } catch (e) {
+                alert("Erro ao salvar dados na nuvem.");
+            } finally {
+                resumoEl.classList.remove('loader-active');
+                resumoEl.innerText = `LISTADOS: ${dados.length}`;
             }
-            render();
-            alert("Sucesso!");
         }
 
         function copiar(txt) {
             navigator.clipboard.writeText(txt);
             const item = dados.find(d => d.CNPJ === txt);
-            if(item && !item['ACAO_SISTEMA']) { item.cor_sessao = 'azul'; render(); }
+            // Marca como azul (em foco) apenas se não tiver ação definitiva ainda
+            if(item && !item['ACAO_SISTEMA']) { 
+                item.cor_sessao = 'azul'; 
+                render(); 
+            }
         }
 
         function toggleAll(v) {
             const analista = document.getElementById('filtroAnalista').value;
             const busca = document.getElementById('busca').value.toLowerCase();
+            
             dados.forEach(d => {
-                const buscaTexto = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
-                const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const matchB = buscaTexto.includes(busca);
+                const textoParaBusca = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
+                const matchAnalista = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
+                const matchBusca = textoParaBusca.includes(busca);
                 const matchPendente = filtroPendentesAtivo ? (!d['ACAO_SISTEMA'] || d['ACAO_SISTEMA'] === "") : true;
-                
-                if(matchA && matchB && matchPendente) d.selecionado = v;
+
+                if (matchAnalista && matchBusca && matchPendente) {
+                    d.selecionado = v;
+                }
             });
             render();
         }
 
+        // Carga inicial
         baixarDados();
     </script>
 </body>
