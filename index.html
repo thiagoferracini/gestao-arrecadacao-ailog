@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel Arrecadação Ailog - Limpeza v25</title>
+    <title>Painel Arrecadação Ailog - Precisão de Datas v26</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-size: 0.7rem; }
@@ -12,7 +12,7 @@
         td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; padding: 4px !important; }
         .cnpj-cell { cursor: pointer; text-decoration: underline; color: #2563eb; font-weight: bold; }
         .badge-atraso { background: #b91c1c; color: white; padding: 2px 5px; border-radius: 4px; font-weight: bold; font-size: 9px; }
-        .badge-no-date { background: #fef3c7; color: #92400e; padding: 2px 5px; border-radius: 4px; font-size: 8px; font-weight: bold; border: 1px solid #fcd34d; }
+        .badge-ok { background: #10b981; color: white; padding: 2px 5px; border-radius: 4px; font-weight: bold; font-size: 9px; }
     </style>
 </head>
 <body class="bg-slate-100 p-2">
@@ -20,7 +20,7 @@
     <div class="max-w-[100%] mx-auto">
         <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-red-600">
             <div class="flex items-center gap-4">
-                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Fila de Disparo - Dados Sincronizados</h1>
+                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Fila de Disparo - Cálculo Real de Dias</h1>
                 <div id="cronometro" class="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 text-[10px]">00:00:00</div>
             </div>
             
@@ -32,23 +32,6 @@
             </div>
         </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2 bg-white p-2 rounded shadow-sm border-l-4 border-red-600">
-            <div class="flex items-center gap-2 border-r pr-2">
-                <span class="font-bold text-slate-500 uppercase text-[9px]">Analista:</span>
-                <select id="filtroAnalista" onchange="render()" class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none font-bold text-slate-700"><option value="todos">Todos</option></select>
-            </div>
-            <div class="flex items-center gap-2 border-r pr-2">
-                <span class="font-bold text-slate-500 uppercase text-[9px]">Busca:</span>
-                <input type="text" id="busca" oninput="render()" placeholder="CNPJ, Razão ou Rede..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none">
-            </div>
-            <div class="flex items-center gap-4 px-2 border-r text-[10px]">
-                <div class="text-red-700 font-bold uppercase">Críticos: <span id="totalCriticos">0</span></div>
-            </div>
-            <div class="flex items-center justify-end text-blue-600 font-mono font-bold">
-                <span id="resumo" class="uppercase text-[9px]">Sincronizando...</span>
-            </div>
-        </div>
-
         <div id="mainTable" class="bg-white rounded shadow-sm table-container">
             <table class="min-w-full table-fixed border-collapse">
                 <thead>
@@ -59,7 +42,7 @@
                         <th class="w-32 p-1 text-left border-r text-blue-800">REDE</th>
                         <th class="w-24 p-1 text-left border-r">RESPONSÁVEL</th>
                         <th class="w-24 p-1 text-right border-r text-red-600 italic">▼ VALOR PENDENTE</th>
-                        <th class="w-24 p-1 text-center font-bold">PRAZO</th>
+                        <th class="w-24 p-1 text-center font-bold">TEMPO SEM AÇÃO</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody" class="text-[10px] text-slate-700"></tbody>
@@ -79,27 +62,23 @@
         }, 1000);
 
         async function baixarDados() {
-            document.getElementById('resumo').innerText = "Sincronizando...";
             try {
                 const r = await fetch(URL_SCRIPT);
                 const raw = await r.json();
-                const hoje = new Date();
-                hoje.setHours(0,0,0,0);
+                
+                // DATA DE HOJE (26/03/2026) fixada para cálculo
+                const hoje = new Date(2026, 2, 26); 
 
-                // CORREÇÃO: Limpa espaços em branco de todas as chaves (nomes de colunas) do objeto
                 const dadosLimpos = raw.map(obj => {
                     const novoObj = {};
-                    Object.keys(obj).forEach(key => {
-                        novoObj[key.trim()] = obj[key];
-                    });
+                    Object.keys(obj).forEach(key => { novoObj[key.trim()] = obj[key]; });
                     return novoObj;
                 });
 
                 dados = dadosLimpos.filter(r => String(r['STATUS'] || "").toUpperCase() === "ATUALIZADO")
                 .map(r => {
-                    // Agora o sistema encontra "ULTIMO CONTATO" mesmo que tenha espaço no Sheets
                     const dataBruta = r['ULTIMO CONTATO'] || r['ÚLTIMO CONTATO'] || "";
-                    const dataC = parseDataUniversal(dataBruta);
+                    const dataC = parseDataAilog(dataBruta);
                     
                     let dif = 0;
                     if (dataC) {
@@ -112,54 +91,46 @@
                 })
                 .sort((a, b) => b.valorNumerico - a.valorNumerico);
 
-                const analistas = [...new Set(dados.map(d => d['USUARIO RESPONSAVEL']))].sort();
-                const combo = document.getElementById('filtroAnalista');
-                combo.innerHTML = '<option value="todos">Todos</option>';
-                analistas.forEach(a => { if(a) combo.innerHTML += `<option value="${a}">${a}</option>`; });
-
                 render();
-            } catch (e) { alert("Erro de conexão com o motor."); }
+            } catch (e) { alert("Erro de conexão."); }
         }
 
-        function parseDataUniversal(val) {
+        // FUNÇÃO ESPECÍFICA PARA O FORMATO "29/08/2024 13:42"
+        function parseDataAilog(val) {
             if (!val || val === "" || val === " ") return null;
-            if (val instanceof Date) return val;
-            const str = String(val).trim();
-            if (str.includes('/')) {
-                const p = str.split(' ')[0].split('/');
-                if (p.length === 3) return new Date(p[2], p[1]-1, p[0]);
-            }
-            if (str.includes('-')) {
-                const p = str.split(' ')[0].split('-');
-                if (p.length === 3) return new Date(p[0], p[1]-1, p[2]);
-            }
-            const d = new Date(val);
-            return isNaN(d.getTime()) ? null : d;
+            
+            try {
+                const partes = String(val).split(' '); // Separa a data da hora
+                const dataParte = partes[0]; // Pega apenas "29/08/2024"
+                const dmy = dataParte.split('/');
+                
+                if (dmy.length === 3) {
+                    const dia = parseInt(dmy[0], 10);
+                    const mes = parseInt(dmy[1], 10) - 1; // Mês no JS começa em 0
+                    const ano = parseInt(dmy[2], 10);
+                    
+                    const dataObj = new Date(ano, mes, dia);
+                    return isNaN(dataObj.getTime()) ? null : dataObj;
+                }
+            } catch (e) { return null; }
+            return null;
         }
 
         function render() {
-            const analista = document.getElementById('filtroAnalista').value;
-            const busca = document.getElementById('busca').value.toLowerCase();
             const body = document.getElementById('tableBody');
             body.innerHTML = '';
 
             const filtrados = dados.filter(d => {
-                const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const txt = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
-                const matchB = txt.includes(busca);
                 const temAcao = d['ACAO_SISTEMA'] === 'VERDE' || d['ACAO_SISTEMA'] === 'VERMELHO';
-                const matchAtraso = apenasAtrasados ? ((d.diasSemAcao > 7 || d.semData) && !temAcao) : !temAcao;
-                return matchA && matchB && matchAtraso;
+                return apenasAtrasados ? (d.diasSemAcao > 7 && !temAcao) : !temAcao;
             });
 
             filtrados.forEach(row => {
                 const tr = document.createElement('tr');
-                const corClasse = row.cor_sessao === 'azul' ? 'row-blue' : '';
-                tr.className = `border-b hover:bg-slate-50 ${corClasse}`;
+                tr.className = `border-b hover:bg-slate-50`;
                 
-                let textoPrazo = row.semData ? 
-                    '<span class="badge-no-date">VERIF. DATA</span>' : 
-                    `<span class="${row.diasSemAcao > 7 ? 'badge-atraso' : ''}">${row.diasSemAcao} dias</span>`;
+                let labelDias = row.semData ? 'Sem Data' : `${row.diasSemAcao} dias`;
+                let corBadge = row.diasSemAcao > 7 ? 'badge-atraso' : 'badge-ok';
 
                 tr.innerHTML = `
                     <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onchange="updateSel('${row.CNPJ}', this.checked)"></td>
@@ -168,13 +139,10 @@
                     <td class="text-blue-800 font-semibold">${row['REDE ESTABELECIMENTO'] || '-'}</td>
                     <td>${row['USUARIO RESPONSAVEL']}</td>
                     <td class="text-right text-red-700 font-mono font-bold">R$ ${row['VALOR PENDENTE'] || '0,00'}</td>
-                    <td class="text-center">${textoPrazo}</td>
+                    <td class="text-center"><span class="${corBadge}">${labelDias}</span></td>
                 `;
                 body.appendChild(tr);
             });
-
-            document.getElementById('totalCriticos').innerText = dados.filter(d => (d.diasSemAcao > 7 || d.semData) && !d['ACAO_SISTEMA']).length;
-            document.getElementById('resumo').innerText = `EXIBINDO: ${filtrados.length}`;
             atualizarContadorSelecao();
         }
 
@@ -192,45 +160,28 @@
         async function salvarAcao(cor) {
             const sel = dados.filter(d => d.selecionado);
             if (sel.length === 0) return;
-            if (!confirm(`Sincronizar ${sel.length} registros?`)) return;
-            document.getElementById('resumo').innerText = "Salvando...";
-            try {
-                const response = await fetch(URL_SCRIPT, {
-                    method: 'POST',
-                    body: JSON.stringify({ updates: sel.map(i => ({ cnpj: i.CNPJ, cor: cor })) })
-                });
-                if (response.ok) {
-                    sel.forEach(i => { i['ACAO_SISTEMA'] = cor; i.selecionado = false; i.cor_sessao = ''; });
-                    document.getElementById('selectAll').checked = false;
-                    render();
-                }
-            } catch (e) { alert("Erro ao salvar."); }
+            const response = await fetch(URL_SCRIPT, {
+                method: 'POST',
+                body: JSON.stringify({ updates: sel.map(i => ({ cnpj: i.CNPJ, cor: cor })) })
+            });
+            if (response.ok) {
+                sel.forEach(i => { i['ACAO_SISTEMA'] = cor; i.selecionado = false; });
+                render();
+            }
         }
 
         function toggleModoFiltro() {
             apenasAtrasados = !apenasAtrasados;
-            const btn = document.getElementById('btnModoFiltro');
-            btn.innerText = apenasAtrasados ? "👁️ APENAS ATRASADOS (+7D)" : "👁️ MOSTRAR TODOS";
-            btn.classList.toggle('btn-active');
+            document.getElementById('btnModoFiltro').classList.toggle('btn-active');
             render();
         }
 
-        function copiar(txt) {
-            navigator.clipboard.writeText(txt);
-            const item = dados.find(d => d.CNPJ === txt);
-            if(item && !item['ACAO_SISTEMA']) { item.cor_sessao = 'azul'; render(); }
-        }
+        function copiar(txt) { navigator.clipboard.writeText(txt); }
 
         function toggleAll(v) {
-            const analista = document.getElementById('filtroAnalista').value;
-            const busca = document.getElementById('busca').value.toLowerCase();
             dados.forEach(d => {
-                const txt = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
-                const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const matchB = txt.includes(busca);
                 const temAcao = d['ACAO_SISTEMA'] === 'VERDE' || d['ACAO_SISTEMA'] === 'VERMELHO';
-                const matchAtraso = apenasAtrasados ? ((d.diasSemAcao > 7 || d.semData) && !temAcao) : !temAcao;
-                if (matchA && matchB && matchAtraso) d.selecionado = v;
+                if (apenasAtrasados ? (d.diasSemAcao > 7 && !temAcao) : !temAcao) d.selecionado = v;
             });
             render();
         }
