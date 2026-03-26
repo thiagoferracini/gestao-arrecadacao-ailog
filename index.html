@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel Arrecadação Ailog - v28 Estável</title>
+    <title>Painel Arrecadação Ailog - v29 Final</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-size: 0.7rem; }
@@ -20,15 +20,15 @@
     <div class="max-w-[100%] mx-auto">
         <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-red-600">
             <div class="flex items-center gap-4">
-                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Fila de Disparo - Ailog v28</h1>
+                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Fila de Disparo - Ailog v29</h1>
                 <div id="cronometro" class="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 text-[10px]">00:00:00</div>
             </div>
             
             <div class="flex gap-2">
                 <button onclick="baixarDados()" class="bg-slate-600 text-white px-3 py-1.5 rounded text-[10px] font-bold hover:bg-slate-700">🔄 ATUALIZAR</button>
                 <button id="btnModoFiltro" onclick="toggleModoFiltro()" class="bg-white text-slate-700 border border-slate-300 px-3 py-1 rounded text-[10px] font-bold btn-active">👁️ APENAS ATRASADOS (+7D)</button>
-                <button onclick="salvarAcao('VERMELHO')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[10px] font-bold">NÃO DISPARAR (<span class="countSel">0</span>)</button>
-                <button onclick="salvarAcao('VERDE')" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-[10px] font-bold">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
+                <button onclick="salvarAcao('VERMELHO')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[10px] font-bold shadow-md">NÃO DISPARAR (<span class="countSel">0</span>)</button>
+                <button onclick="salvarAcao('VERDE')" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-[10px] font-bold shadow-md">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
             </div>
         </header>
 
@@ -39,13 +39,13 @@
             </div>
             <div class="flex items-center gap-2 border-r pr-2">
                 <span class="font-bold text-slate-500 uppercase text-[9px]">Busca:</span>
-                <input type="text" id="busca" oninput="render()" placeholder="CNPJ ou Razão..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none text-[10px]">
+                <input type="text" id="busca" oninput="render()" placeholder="CNPJ, Razão ou Rede..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none text-[10px]">
             </div>
             <div class="flex items-center gap-4 px-2 border-r text-[10px]">
                 <div class="text-red-700 font-bold uppercase">Críticos (+7d): <span id="totalCriticos">0</span></div>
             </div>
             <div class="flex items-center justify-end text-blue-600 font-mono font-bold">
-                <span id="resumo" class="uppercase text-[9px]">Carregando...</span>
+                <span id="resumo" class="uppercase text-[9px]">Aguardando...</span>
             </div>
         </div>
 
@@ -57,7 +57,7 @@
                         <th class="w-24 p-1 text-left border-r">CNPJ</th>
                         <th class="p-1 text-left border-r">RAZÃO SOCIAL</th>
                         <th class="w-32 p-1 text-left border-r text-blue-800">REDE</th>
-                        <th class="w-24 p-1 text-left border-r">RESPONSÁVEL</th>
+                        <th class="w-24 p-1 text-left border-r text-slate-400">RESPONSÁVEL</th>
                         <th class="w-24 p-1 text-right border-r text-red-600 italic">▼ VALOR PENDENTE</th>
                         <th class="w-24 p-1 text-center font-bold">DIAS SEM AÇÃO</th>
                     </tr>
@@ -79,62 +79,67 @@
         }, 1000);
 
         async function baixarDados() {
-            document.getElementById('resumo').innerText = "Conectando...";
+            document.getElementById('resumo').innerText = "Sincronizando...";
             try {
-                const response = await fetch(URL_SCRIPT);
-                const raw = await response.json();
+                const r = await fetch(URL_SCRIPT);
+                const raw = await r.json();
                 const hoje = new Date();
-                hoje.setHours(0,0,0,0);
+                hoje.setHours(0,0,0,0); 
 
-                dados = raw.filter(r => String(r['STATUS'] || "").toUpperCase() === "ATUALIZADO")
+                // Limpeza automática de espaços em nomes de colunas
+                const dadosLimpos = raw.map(obj => {
+                    const novoObj = {};
+                    Object.keys(obj).forEach(key => { novoObj[key.trim()] = obj[key]; });
+                    return novoObj;
+                });
+
+                dados = dadosLimpos.filter(r => String(r['STATUS'] || "").toUpperCase() === "ATUALIZADO")
                 .map(r => {
-                    try {
-                        // Limpeza de chaves para evitar o erro do espaço no "ULTIMO CONTATO "
-                        const limpo = {};
-                        Object.keys(r).forEach(k => limpo[k.trim()] = r[k]);
+                    const dataBruta = r['ULTIMO CONTATO'] || r['ÚLTIMO CONTATO'] || "";
+                    const dataC = parseDataAilog(dataBruta);
+                    
+                    let dif = 0;
+                    if (dataC) {
+                        const timeDiff = hoje.getTime() - dataC.getTime();
+                        dif = Math.floor(timeDiff / (1000 * 3600 * 24));
+                    }
+                    
+                    let valorLimpo = String(r['VALOR PENDENTE'] || "0").replace("R$", "").replace(/\./g, "").replace(",", ".").trim();
+                    return { 
+                        ...r, 
+                        diasSemAcao: dif, 
+                        valorNumerico: parseFloat(valorLimpo) || 0, 
+                        selecionado: false, 
+                        semData: !dataC 
+                    };
+                })
+                .sort((a, b) => b.valorNumerico - a.valorNumerico);
 
-                        const dataBruta = limpo['ULTIMO CONTATO'] || limpo['ÚLTIMO CONTATO'] || "";
-                        const dataC = parseDataAilog(dataBruta);
-                        
-                        let dif = 0;
-                        if (dataC) {
-                            const timeDiff = hoje.getTime() - dataC.getTime();
-                            dif = Math.floor(timeDiff / (1000 * 3600 * 24));
-                        }
-                        
-                        let vOriginal = String(limpo['VALOR PENDENTE'] || "0");
-                        let vNumerico = parseFloat(vOriginal.replace("R$", "").replace(/\./g, "").replace(",", ".").trim()) || 0;
-
-                        return { 
-                            ...limpo, 
-                            diasSemAcao: dif, 
-                            valorNumerico: vNumerico, 
-                            selecionado: false, 
-                            semData: !dataC 
-                        };
-                    } catch(err) { return null; }
-                }).filter(x => x !== null);
-
-                // Popular Filtro de Analista
+                // Popular Analistas
                 const analistas = [...new Set(dados.map(d => d['USUARIO RESPONSAVEL']))].filter(Boolean).sort();
                 const combo = document.getElementById('filtroAnalista');
                 combo.innerHTML = '<option value="todos">Todos</option>';
-                analistas.forEach(a => combo.innerHTML += `<option value="${a}">${a}</option>`);
+                analistas.forEach(a => { combo.innerHTML += `<option value="${a}">${a}</option>`; });
 
                 render();
-            } catch (e) { 
-                document.getElementById('resumo').innerText = "Erro ao Carregar";
-                console.error(e);
-            }
+            } catch (e) { alert("Erro de conexão."); }
         }
 
+        // CORREÇÃO DEFINITIVA PARA: 29/08/2024 13:42
         function parseDataAilog(val) {
-            if (!val) return null;
+            if (!val || val === "" || val === " ") return null;
             try {
-                const dataParte = String(val).split(' ')[0]; // Pega 29/08/2024
-                const dmy = dataParte.split('/');
+                // Remove espaços e pega a parte da data antes da hora
+                const dataParte = String(val).trim().split(' ')[0]; 
+                const dmy = dataParte.split('/'); // Divide 29/08/2024
+                
                 if (dmy.length === 3) {
-                    return new Date(parseInt(dmy[2],10), parseInt(dmy[1],10)-1, parseInt(dmy[0],10));
+                    const dia = parseInt(dmy[0], 10);
+                    const mes = parseInt(dmy[1], 10) - 1; // Janeiro é 0
+                    const ano = parseInt(dmy[2], 10);
+                    
+                    const dataObj = new Date(ano, mes, dia);
+                    return isNaN(dataObj.getTime()) ? null : dataObj;
                 }
             } catch (e) { return null; }
             return null;
@@ -148,31 +153,35 @@
 
             const filtrados = dados.filter(d => {
                 const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const matchB = `${d.CNPJ} ${d['RAZÃO SOCIAL']}`.toLowerCase().includes(busca);
+                const txt = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
+                const matchB = txt.includes(busca);
                 const temAcao = d['ACAO_SISTEMA'] === 'VERDE' || d['ACAO_SISTEMA'] === 'VERMELHO';
                 const matchAtraso = apenasAtrasados ? (d.diasSemAcao > 7 && !temAcao) : !temAcao;
                 return matchA && matchB && matchAtraso;
-            }).sort((a, b) => b.valorNumerico - a.valorNumerico);
+            });
 
             filtrados.forEach(row => {
                 const tr = document.createElement('tr');
                 const corClasse = row.cor_sessao === 'azul' ? 'row-blue' : '';
                 tr.className = `border-b hover:bg-slate-50 ${corClasse}`;
                 
+                let labelDias = row.semData ? 'S/ Data' : `${row.diasSemAcao} dias`;
+                let corBadge = row.diasSemAcao > 7 ? 'badge-atraso' : '';
+
                 tr.innerHTML = `
                     <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onchange="updateSel('${row.CNPJ}', this.checked)"></td>
                     <td class="cnpj-cell" onclick="copiar('${row.CNPJ}')">${row.CNPJ}</td>
                     <td class="font-bold">${row['RAZÃO SOCIAL']}</td>
                     <td class="text-blue-800 font-semibold">${row['REDE ESTABELECIMENTO'] || '-'}</td>
-                    <td>${row['USUARIO RESPONSAVEL']}</td>
+                    <td class="text-slate-400">${row['USUARIO RESPONSAVEL']}</td>
                     <td class="text-right text-red-700 font-mono font-bold">R$ ${row['VALOR PENDENTE'] || '0,00'}</td>
-                    <td class="text-center"><span class="${row.diasSemAcao > 7 ? 'badge-atraso' : ''}">${row.semData ? 'S/ Data' : row.diasSemAcao + ' dias'}</span></td>
+                    <td class="text-center"><span class="${corBadge}">${labelDias}</span></td>
                 `;
                 body.appendChild(tr);
             });
 
             document.getElementById('totalCriticos').innerText = dados.filter(d => d.diasSemAcao > 7 && !d['ACAO_SISTEMA']).length;
-            document.getElementById('resumo').innerText = `LISTADOS: ${filtrados.length}`;
+            document.getElementById('resumo').innerText = `EXIBINDO: ${filtrados.length}`;
             atualizarContadorSelecao();
         }
 
@@ -190,7 +199,7 @@
         async function salvarAcao(cor) {
             const sel = dados.filter(d => d.selecionado);
             if (sel.length === 0) return;
-            if (!confirm(`Sincronizar ${sel.length} itens?`)) return;
+            if (!confirm(`Confirmar ${sel.length} registros?`)) return;
             document.getElementById('resumo').innerText = "Salvando...";
             try {
                 const response = await fetch(URL_SCRIPT, {
@@ -208,8 +217,9 @@
 
         function toggleModoFiltro() {
             apenasAtrasados = !apenasAtrasados;
-            document.getElementById('btnModoFiltro').innerText = apenasAtrasados ? "👁️ APENAS ATRASADOS (+7D)" : "👁️ MOSTRAR TODOS";
-            document.getElementById('btnModoFiltro').classList.toggle('btn-active');
+            const btn = document.getElementById('btnModoFiltro');
+            btn.innerText = apenasAtrasados ? "👁️ APENAS ATRASADOS (+7D)" : "👁️ MOSTRAR TODOS";
+            btn.classList.toggle('btn-active');
             render();
         }
 
