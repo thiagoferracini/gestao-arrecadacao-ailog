@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel Arrecadação Ailog - v32 Leitura Corrigida</title>
+    <title>Painel Arrecadação Ailog - v34</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-size: 0.7rem; }
@@ -20,15 +20,15 @@
     <div class="max-w-[100%] mx-auto">
         <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-red-600">
             <div class="flex items-center gap-4">
-                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Fila de Disparo - Ailog v32</h1>
+                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Fila de Disparo - v34</h1>
                 <div id="cronometro" class="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 text-[10px]">00:00:00</div>
             </div>
             
             <div class="flex gap-2">
                 <button onclick="baixarDados()" class="bg-slate-600 text-white px-3 py-1.5 rounded text-[10px] font-bold hover:bg-slate-700">🔄 ATUALIZAR</button>
                 <button id="btnModoFiltro" onclick="toggleModoFiltro()" class="bg-white text-slate-700 border border-slate-300 px-3 py-1 rounded text-[10px] font-bold btn-active">👁️ APENAS ATRASADOS (+7D)</button>
-                <button onclick="salvarAcao('VERMELHO')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[10px] font-bold">NÃO DISPARAR (<span class="countSel">0</span>)</button>
-                <button onclick="salvarAcao('VERDE')" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-[10px] font-bold">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
+                <button onclick="salvarAcao('VERMELHO')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[10px] font-bold shadow-md">NÃO DISPARAR (<span class="countSel">0</span>)</button>
+                <button onclick="salvarAcao('VERDE')" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-[10px] font-bold shadow-md">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
             </div>
         </header>
 
@@ -39,13 +39,13 @@
             </div>
             <div class="flex items-center gap-2 border-r pr-2">
                 <span class="font-bold text-slate-500 uppercase text-[9px]">Busca:</span>
-                <input type="text" id="busca" oninput="render()" placeholder="Busca rápida..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none">
+                <input type="text" id="busca" oninput="render()" placeholder="CNPJ ou Razão..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none text-[10px]">
             </div>
             <div class="flex items-center gap-4 px-2 border-r text-[10px]">
-                <div class="text-red-700 font-bold uppercase">Críticos: <span id="totalCriticos">0</span></div>
+                <div class="text-red-700 font-bold uppercase">Críticos (+7d): <span id="totalCriticos">0</span></div>
             </div>
-            <div class="flex items-center justify-end text-blue-600 font-mono font-bold">
-                <span id="resumo" class="uppercase text-[9px]">Sincronizando...</span>
+            <div class="flex items-center justify-end text-blue-600 font-mono font-bold uppercase text-[9px]">
+                <span id="resumo">Aguardando...</span>
             </div>
         </div>
 
@@ -78,54 +78,58 @@
             document.getElementById('cronometro').innerText = `${String(diff.getUTCHours()).padStart(2,'0')}:${String(diff.getUTCMinutes()).padStart(2,'0')}:${String(diff.getUTCSeconds()).padStart(2,'0')}`;
         }, 1000);
 
-        // Função mágica para limpar nomes de colunas (tira espaços e acentos)
-        function normalizar(obj) {
-            const novo = {};
-            for (let chave in obj) {
-                let chaveLimpa = chave.trim().toUpperCase()
-                    .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Tira acentos
-                novo[chaveLimpa] = obj[chave];
-            }
-            return novo;
-        }
-
         async function baixarDados() {
-            document.getElementById('resumo').innerText = "Carregando...";
+            document.getElementById('resumo').innerText = "Sincronizando...";
             try {
                 const r = await fetch(URL_SCRIPT);
                 const raw = await r.json();
                 const hoje = new Date();
                 hoje.setHours(0,0,0,0);
 
-                dados = raw.map(item => normalizar(item)) // Normaliza as colunas de cada linha
-                .filter(r => String(r['STATUS'] || "").toUpperCase() === "ATUALIZADO")
-                .map(r => {
-                    // Agora busca sempre por "ULTIMO CONTATO" (sem acento e sem espaço)
+                dados = raw.filter(r => String(r['STATUS'] || "").toUpperCase() === "ATUALIZADO")
+                .map(item => {
+                    // Mapeamento manual para garantir que acentos não quebrem a leitura
+                    const r = {};
+                    Object.keys(item).forEach(key => {
+                        const k = key.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                        r[k] = item[key];
+                    });
+
                     let dataRef = r['ULTIMO CONTATO'] || "";
                     let dias = 0;
                     let sData = true;
 
                     if (dataRef && String(dataRef).includes('/')) {
                         const partes = String(dataRef).split(' ')[0].split('/');
-                        const dObj = new Date(partes[2], partes[1]-1, partes[0]);
-                        if (!isNaN(dObj.getTime())) {
-                            dias = Math.floor((hoje - dObj) / (1000 * 3600 * 24));
-                            sData = false;
+                        if (partes.length === 3) {
+                            const dObj = new Date(partes[2], partes[1]-1, partes[0]);
+                            if (!isNaN(dObj.getTime())) {
+                                dias = Math.floor((hoje - dObj) / (1000 * 3600 * 24));
+                                sData = false;
+                            }
                         }
                     }
 
                     let vNum = parseFloat(String(r['VALOR PENDENTE'] || "0").replace("R$", "").replace(/\./g, "").replace(",", ".").trim()) || 0;
-                    return { ...r, diasSemAcao: dias, valorNumerico: vNum, selecionado: false, semData: sData };
+                    
+                    return { 
+                        original: item, // mantém as chaves originais para segurança
+                        limpo: r,       // chaves limpas para lógica
+                        diasSemAcao: dias, 
+                        valorNumerico: vNum, 
+                        selecionado: false, 
+                        semData: sData 
+                    };
                 })
                 .sort((a, b) => b.valorNumerico - a.valorNumerico);
 
-                const analistas = [...new Set(dados.map(d => d['USUARIO RESPONSAVEL']))].filter(Boolean).sort();
+                const analistas = [...new Set(dados.map(d => d.limpo['USUARIO RESPONSAVEL']))].filter(Boolean).sort();
                 const combo = document.getElementById('filtroAnalista');
                 combo.innerHTML = '<option value="todos">Todos</option>';
                 analistas.forEach(a => combo.innerHTML += `<option value="${a}">${a}</option>`);
 
                 render();
-            } catch (e) { document.getElementById('resumo').innerText = "Erro na API"; }
+            } catch (e) { document.getElementById('resumo').innerText = "Erro!"; }
         }
 
         function render() {
@@ -135,9 +139,9 @@
             body.innerHTML = '';
 
             const filtrados = dados.filter(d => {
-                const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const matchB = `${d.CNPJ} ${d['RAZAO SOCIAL']}`.toLowerCase().includes(busca);
-                const temAcao = d['ACAO_SISTEMA'] === 'VERDE' || d['ACAO_SISTEMA'] === 'VERMELHO';
+                const matchA = analista === 'todos' || d.limpo['USUARIO RESPONSAVEL'] === analista;
+                const matchB = `${d.limpo['CNPJ']} ${d.limpo['RAZAO SOCIAL']}`.toLowerCase().includes(busca);
+                const temAcao = d.limpo['ACAO_SISTEMA'] === 'VERDE' || d.limpo['ACAO_SISTEMA'] === 'VERMELHO';
                 const matchAtraso = apenasAtrasados ? (d.diasSemAcao > 7 && !temAcao) : !temAcao;
                 return matchA && matchB && matchAtraso;
             });
@@ -147,24 +151,24 @@
                 tr.className = row.cor_sessao === 'azul' ? 'row-blue border-b' : 'border-b hover:bg-slate-50';
                 
                 tr.innerHTML = `
-                    <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onchange="updateSel('${row.CNPJ}', this.checked)"></td>
-                    <td class="cnpj-cell" onclick="copiar('${row.CNPJ}')">${row.CNPJ}</td>
-                    <td class="font-bold">${row['RAZAO SOCIAL'] || 'SEM NOME'}</td>
-                    <td class="text-blue-800 font-semibold">${row['REDE ESTABELECIMENTO'] || '-'}</td>
-                    <td>${row['USUARIO RESPONSAVEL'] || '-'}</td>
-                    <td class="text-right text-red-700 font-mono font-bold">R$ ${row['VALOR PENDENTE'] || '0,00'}</td>
+                    <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onchange="updateSel('${row.limpo['CNPJ']}', this.checked)"></td>
+                    <td class="cnpj-cell" onclick="copiar('${row.limpo['CNPJ']}')">${row.limpo['CNPJ']}</td>
+                    <td class="font-bold">${row.limpo['RAZAO SOCIAL'] || 'SEM NOME'}</td>
+                    <td class="text-blue-800 font-semibold">${row.limpo['REDE ESTABELECIMENTO'] || '-'}</td>
+                    <td>${row.limpo['USUARIO RESPONSAVEL'] || '-'}</td>
+                    <td class="text-right text-red-700 font-mono font-bold">R$ ${row.limpo['VALOR PENDENTE'] || '0,00'}</td>
                     <td class="text-center"><span class="${row.diasSemAcao > 7 ? 'badge-atraso' : ''}">${row.semData ? 'S/ Data' : row.diasSemAcao + ' dias'}</span></td>
                 `;
                 body.appendChild(tr);
             });
 
-            document.getElementById('totalCriticos').innerText = dados.filter(d => d.diasSemAcao > 7 && !d['ACAO_SISTEMA']).length;
+            document.getElementById('totalCriticos').innerText = dados.filter(d => d.diasSemAcao > 7 && !d.limpo['ACAO_SISTEMA']).length;
             document.getElementById('resumo').innerText = `LISTADOS: ${filtrados.length}`;
             atualizarContadorSelecao();
         }
 
         function updateSel(cnpj, v) {
-            const item = dados.find(d => d.CNPJ === cnpj);
+            const item = dados.find(d => d.limpo['CNPJ'] === cnpj);
             if(item) item.selecionado = v;
             atualizarContadorSelecao();
         }
@@ -177,17 +181,18 @@
         async function salvarAcao(cor) {
             const sel = dados.filter(d => d.selecionado);
             if (sel.length === 0) return;
-            document.getElementById('resumo').innerText = "Sincronizando...";
+            document.getElementById('resumo').innerText = "Salvando...";
             try {
                 const r = await fetch(URL_SCRIPT, {
                     method: 'POST',
-                    body: JSON.stringify({ updates: sel.map(i => ({ cnpj: i.CNPJ, cor: cor })) })
+                    body: JSON.stringify({ updates: sel.map(i => ({ cnpj: i.limpo['CNPJ'], cor: cor })) })
                 });
                 if (r.ok) {
-                    sel.forEach(i => { i['ACAO_SISTEMA'] = cor; i.selecionado = false; i.cor_sessao = ''; });
+                    sel.forEach(i => { i.limpo['ACAO_SISTEMA'] = cor; i.selecionado = false; i.cor_sessao = ''; });
                     render();
                 }
-            } catch (e) { alert("Erro ao salvar."); }
+            } catch (e) { alert("Erro!"); }
+            finally { document.getElementById('resumo').innerText = "OK"; }
         }
 
         function toggleModoFiltro() {
@@ -200,7 +205,7 @@
 
         function copiar(txt) {
             navigator.clipboard.writeText(txt);
-            const item = dados.find(d => d.CNPJ === txt);
+            const item = dados.find(d => d.limpo['CNPJ'] === txt);
             if(item) { item.cor_sessao = 'azul'; render(); }
         }
 
@@ -208,9 +213,9 @@
             const analista = document.getElementById('filtroAnalista').value;
             const busca = document.getElementById('busca').value.toLowerCase();
             dados.forEach(d => {
-                const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const matchB = `${d.CNPJ} ${d['RAZAO SOCIAL']}`.toLowerCase().includes(busca);
-                const temAcao = d['ACAO_SISTEMA'] === 'VERDE' || d['ACAO_SISTEMA'] === 'VERMELHO';
+                const matchA = analista === 'todos' || d.limpo['USUARIO RESPONSAVEL'] === analista;
+                const matchB = `${d.limpo['CNPJ']} ${d.limpo['RAZAO SOCIAL']}`.toLowerCase().includes(busca);
+                const temAcao = d.limpo['ACAO_SISTEMA'] === 'VERDE' || d.limpo['ACAO_SISTEMA'] === 'VERMELHO';
                 const matchAtraso = apenasAtrasados ? (d.diasSemAcao > 7 && !temAcao) : !temAcao;
                 if (matchA && matchB && matchAtraso) d.selecionado = v;
             });
