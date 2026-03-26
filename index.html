@@ -2,19 +2,17 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel Arrecadação Ailog - Filtro Automático v22</title>
+    <title>Painel Arrecadação Ailog - Correção de Datas v23</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-size: 0.7rem; }
         .row-blue { background-color: #dbeafe !important; color: #1e3a8a; }
-        .row-green { background-color: #dcfce7 !important; color: #166534; }
-        .row-red { background-color: #fee2e2 !important; color: #991b1b; }
         .table-container { max-height: 75vh; overflow-y: auto; border: 1px solid #e5e7eb; }
         th { position: sticky; top: 0; background: #f8fafc; z-index: 10; border-bottom: 2px solid #e2e8f0; padding: 6px !important; }
         td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; padding: 4px !important; }
         .cnpj-cell { cursor: pointer; text-decoration: underline; color: #2563eb; font-weight: bold; }
-        .btn-active { background-color: #1e3a8a !important; color: white !important; }
         .badge-atraso { background: #b91c1c; color: white; padding: 2px 5px; border-radius: 4px; font-weight: bold; font-size: 9px; }
+        .badge-no-date { background: #e2e8f0; color: #64748b; padding: 2px 5px; border-radius: 4px; font-size: 9px; }
     </style>
 </head>
 <body class="bg-slate-100 p-2">
@@ -22,12 +20,12 @@
     <div class="max-w-[100%] mx-auto">
         <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-red-600">
             <div class="flex items-center gap-4">
-                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Fila de Disparo: Alvos +7 Dias</h1>
+                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Fila de Disparo: Inteligência de Prazos</h1>
                 <div id="cronometro" class="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 text-[10px]">00:00:00</div>
             </div>
             
             <div class="flex gap-2">
-                <button onclick="baixarDados()" class="bg-slate-600 text-white px-3 py-1.5 rounded text-[10px] font-bold hover:bg-slate-700">🔄 ATUALIZAR LISTA</button>
+                <button onclick="baixarDados()" class="bg-slate-600 text-white px-3 py-1.5 rounded text-[10px] font-bold hover:bg-slate-700">🔄 ATUALIZAR</button>
                 <button id="btnModoFiltro" onclick="toggleModoFiltro()" class="bg-white text-slate-700 border border-slate-300 px-3 py-1 rounded text-[10px] font-bold btn-active">👁️ APENAS ATRASADOS (+7D)</button>
                 <button onclick="salvarAcao('VERMELHO')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[10px] font-bold shadow-md">NÃO DISPARAR (<span class="countSel">0</span>)</button>
                 <button onclick="salvarAcao('VERDE')" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-[10px] font-bold shadow-md">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
@@ -86,13 +84,22 @@
                 const r = await fetch(URL_SCRIPT);
                 const raw = await r.json();
                 const hoje = new Date();
+                hoje.setHours(0,0,0,0); // Normaliza para comparar apenas datas
 
                 dados = raw.filter(r => String(r['STATUS']).toUpperCase() === "ATUALIZADO")
                 .map(r => {
-                    const dataC = parseData(r['ULTIMO CONTATO']);
-                    const dif = Math.floor((hoje - dataC) / (1000 * 60 * 60 * 24));
+                    const dataC = parseDataMelhorado(r['ULTIMO CONTATO']);
+                    let dif = 0;
+                    
+                    if (dataC) {
+                        const timeDiff = hoje.getTime() - dataC.getTime();
+                        dif = Math.floor(timeDiff / (1000 * 3600 * 24));
+                    }
+                    
+                    if (dif < 0) dif = 0; // Evita erros de datas futuras
+
                     let valorLimpo = String(r['VALOR PENDENTE'] || "0").replace("R$", "").replace(/\./g, "").replace(",", ".").trim();
-                    return { ...r, diasSemAcao: dif, valorNumerico: parseFloat(valorLimpo) || 0, selecionado: false };
+                    return { ...r, diasSemAcao: dif, valorNumerico: parseFloat(valorLimpo) || 0, selecionado: false, dataInvalida: !dataC };
                 })
                 .sort((a, b) => b.valorNumerico - a.valorNumerico);
 
@@ -105,10 +112,28 @@
             } catch (e) { alert("Erro de conexão."); }
         }
 
-        function parseData(val) {
-            if (!val) return new Date(2000, 0, 1);
-            const p = String(val).split(' ')[0].split('/');
-            return p.length === 3 ? new Date(p[2], p[1]-1, p[0]) : new Date(2000, 0, 1);
+        // NOVA FUNÇÃO DE PARSE MAIS ROBUSTA
+        function parseDataMelhorado(val) {
+            if (!val || val === "" || val === " ") return null;
+            
+            // Se já for um objeto Date do Google
+            if (val instanceof Date) return val;
+
+            try {
+                // Remove horas e limpa espaços (pega só DD/MM/AAAA)
+                const dataLimpa = String(val).split(' ')[0];
+                const p = dataLimpa.split('/');
+                
+                if (p.length === 3) {
+                    // Formato DD/MM/AAAA
+                    const d = parseInt(p[0]);
+                    const m = parseInt(p[1]) - 1;
+                    const a = parseInt(p[2]);
+                    const dataObj = new Date(a, m, d);
+                    return isNaN(dataObj.getTime()) ? null : dataObj;
+                }
+            } catch (e) { return null; }
+            return null;
         }
 
         function toggleModoFiltro() {
@@ -129,9 +154,9 @@
                 const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
                 const txt = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
                 const matchB = txt.includes(busca);
-                
-                // FILTRO AUTOMÁTICO DE 7 DIAS
                 const temAcaoRecente = d['ACAO_SISTEMA'] === 'VERDE' || d['ACAO_SISTEMA'] === 'VERMELHO';
+                
+                // Se for "Apenas Atrasados", filtra quem tem mais de 7 dias
                 const matchAtraso = apenasAtrasados ? (d.diasSemAcao > 7 && !temAcaoRecente) : !temAcaoRecente;
 
                 return matchA && matchB && matchAtraso;
@@ -141,6 +166,11 @@
                 const tr = document.createElement('tr');
                 const corClasse = row.cor_sessao === 'azul' ? 'row-blue' : '';
                 tr.className = `border-b hover:bg-slate-50 ${corClasse}`;
+                
+                let badgeDias = row.dataInvalida ? 
+                    '<span class="badge-no-date">S/ DATA</span>' : 
+                    `<span class="${row.diasSemAcao > 7 ? 'badge-atraso' : ''}">${row.diasSemAcao} dias</span>`;
+
                 tr.innerHTML = `
                     <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onchange="updateSel('${row.CNPJ}', this.checked)"></td>
                     <td class="cnpj-cell" onclick="copiar('${row.CNPJ}')">${row.CNPJ}</td>
@@ -148,7 +178,7 @@
                     <td class="text-blue-800">${row['REDE ESTABELECIMENTO'] || '-'}</td>
                     <td>${row['USUARIO RESPONSAVEL']}</td>
                     <td class="text-right text-red-700 font-mono font-bold">R$ ${row['VALOR PENDENTE'] || '0,00'}</td>
-                    <td class="text-center"><span class="${row.diasSemAcao > 7 ? 'badge-atraso' : ''}">${row.diasSemAcao} dias</span></td>
+                    <td class="text-center">${badgeDias}</td>
                 `;
                 body.appendChild(tr);
             });
