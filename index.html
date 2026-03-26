@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel Arrecadação Ailog - v34</title>
+    <title>Painel Arrecadação Ailog - v35 Oficial</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-size: 0.7rem; }
@@ -20,7 +20,7 @@
     <div class="max-w-[100%] mx-auto">
         <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-red-600">
             <div class="flex items-center gap-4">
-                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Fila de Disparo - v34</h1>
+                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Fila de Disparo - v35</h1>
                 <div id="cronometro" class="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 text-[10px]">00:00:00</div>
             </div>
             
@@ -68,7 +68,9 @@
     </div>
 
     <script>
+        // SEU LINK ATUALIZADO
         const URL_SCRIPT = "https://script.google.com/macros/s/AKfycbzTLydhGGcvI5qAHlBNEP9aX9IEy1RwDJJ8ThhZJI8UwVFe1U-Hx-gImIiSZjWLJxj7ow/exec"; 
+        
         let dados = [];
         let tempoInicio = new Date();
         let apenasAtrasados = true; 
@@ -79,7 +81,7 @@
         }, 1000);
 
         async function baixarDados() {
-            document.getElementById('resumo').innerText = "Sincronizando...";
+            document.getElementById('resumo').innerText = "Conectando ao Motor...";
             try {
                 const r = await fetch(URL_SCRIPT);
                 const raw = await r.json();
@@ -88,38 +90,36 @@
 
                 dados = raw.filter(r => String(r['STATUS'] || "").toUpperCase() === "ATUALIZADO")
                 .map(item => {
-                    // Mapeamento manual para garantir que acentos não quebrem a leitura
-                    const r = {};
+                    // Normalização de chaves (tirar acento e espaço)
+                    const limpo = {};
                     Object.keys(item).forEach(key => {
                         const k = key.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                        r[k] = item[key];
+                        limpo[k] = item[key];
                     });
 
-                    let dataRef = r['ULTIMO CONTATO'] || "";
+                    // LÓGICA DE DATA PARA O SEU LINK
+                    let valData = limpo['ULTIMO CONTATO'] || "";
                     let dias = 0;
                     let sData = true;
 
-                    if (dataRef && String(dataRef).includes('/')) {
-                        const partes = String(dataRef).split(' ')[0].split('/');
-                        if (partes.length === 3) {
-                            const dObj = new Date(partes[2], partes[1]-1, partes[0]);
-                            if (!isNaN(dObj.getTime())) {
-                                dias = Math.floor((hoje - dObj) / (1000 * 3600 * 24));
-                                sData = false;
-                            }
+                    if (valData) {
+                        let dObj = new Date(valData); // Tenta ler como objeto direto (seu caso atual)
+                        
+                        // Se falhou (é string 29/08/2024), tenta o split
+                        if (isNaN(dObj.getTime()) && String(valData).includes('/')) {
+                            const partes = String(valData).split(' ')[0].split('/');
+                            dObj = new Date(partes[2], partes[1]-1, partes[0]);
+                        }
+
+                        if (!isNaN(dObj.getTime())) {
+                            dias = Math.floor((hoje - dObj) / (1000 * 3600 * 24));
+                            sData = false;
                         }
                     }
 
-                    let vNum = parseFloat(String(r['VALOR PENDENTE'] || "0").replace("R$", "").replace(/\./g, "").replace(",", ".").trim()) || 0;
+                    let vNum = parseFloat(String(limpo['VALOR PENDENTE'] || "0").replace("R$", "").replace(/\./g, "").replace(",", ".").trim()) || 0;
                     
-                    return { 
-                        original: item, // mantém as chaves originais para segurança
-                        limpo: r,       // chaves limpas para lógica
-                        diasSemAcao: dias, 
-                        valorNumerico: vNum, 
-                        selecionado: false, 
-                        semData: sData 
-                    };
+                    return { limpo, diasSemAcao: dias, valorNumerico: vNum, selecionado: false, semData: sData };
                 })
                 .sort((a, b) => b.valorNumerico - a.valorNumerico);
 
@@ -129,7 +129,7 @@
                 analistas.forEach(a => combo.innerHTML += `<option value="${a}">${a}</option>`);
 
                 render();
-            } catch (e) { document.getElementById('resumo').innerText = "Erro!"; }
+            } catch (e) { document.getElementById('resumo').innerText = "Erro no Link!"; }
         }
 
         function render() {
@@ -153,7 +153,7 @@
                 tr.innerHTML = `
                     <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onchange="updateSel('${row.limpo['CNPJ']}', this.checked)"></td>
                     <td class="cnpj-cell" onclick="copiar('${row.limpo['CNPJ']}')">${row.limpo['CNPJ']}</td>
-                    <td class="font-bold">${row.limpo['RAZAO SOCIAL'] || 'SEM NOME'}</td>
+                    <td class="font-bold">${row.limpo['RAZAO SOCIAL'] || 'NOME INDISPONÍVEL'}</td>
                     <td class="text-blue-800 font-semibold">${row.limpo['REDE ESTABELECIMENTO'] || '-'}</td>
                     <td>${row.limpo['USUARIO RESPONSAVEL'] || '-'}</td>
                     <td class="text-right text-red-700 font-mono font-bold">R$ ${row.limpo['VALOR PENDENTE'] || '0,00'}</td>
