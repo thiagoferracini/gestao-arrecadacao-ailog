@@ -2,68 +2,66 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel Arrecadação Ailog - Precisão v21</title>
+    <title>Painel Arrecadação Ailog - Filtro Automático v22</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-size: 0.7rem; }
         .row-blue { background-color: #dbeafe !important; color: #1e3a8a; }
         .row-green { background-color: #dcfce7 !important; color: #166534; }
         .row-red { background-color: #fee2e2 !important; color: #991b1b; }
-        .row-recent { background-color: #f8fafc; opacity: 0.8; } 
-        .table-container { max-height: 70vh; overflow-y: auto; border: 1px solid #e5e7eb; }
+        .table-container { max-height: 75vh; overflow-y: auto; border: 1px solid #e5e7eb; }
         th { position: sticky; top: 0; background: #f8fafc; z-index: 10; border-bottom: 2px solid #e2e8f0; padding: 6px !important; }
         td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #f1f5f9; padding: 4px !important; }
         .cnpj-cell { cursor: pointer; text-decoration: underline; color: #2563eb; font-weight: bold; }
         .btn-active { background-color: #1e3a8a !important; color: white !important; }
-        .badge-alert { background: #fee2e2; color: #b91c1c; padding: 2px 4px; border-radius: 4px; font-weight: bold; font-size: 8px; border: 1px solid #fecaca; }
+        .badge-atraso { background: #b91c1c; color: white; padding: 2px 5px; border-radius: 4px; font-weight: bold; font-size: 9px; }
     </style>
 </head>
 <body class="bg-slate-100 p-2">
 
     <div class="max-w-[100%] mx-auto">
-        <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-blue-600">
+        <header class="flex flex-wrap justify-between items-center gap-2 mb-2 bg-white p-2 rounded shadow-sm border-b-2 border-red-600">
             <div class="flex items-center gap-4">
-                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Arrecadação - Sincronização de Seleção</h1>
-                <div id="cronometro" class="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100">00:00:00</div>
+                <h1 class="font-bold text-slate-700 uppercase tracking-tight">Fila de Disparo: Alvos +7 Dias</h1>
+                <div id="cronometro" class="text-blue-700 font-mono font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 text-[10px]">00:00:00</div>
             </div>
             
             <div class="flex gap-2">
-                <button onclick="baixarDados()" class="bg-slate-600 text-white px-3 py-1.5 rounded text-[10px] font-bold hover:bg-slate-700">🔄 ATUALIZAR</button>
-                <button onclick="selecionarCriticos()" class="bg-orange-500 text-white px-3 py-1.5 rounded text-[10px] font-bold hover:bg-orange-600 shadow-sm">🎯 SELECIONAR +7 DIAS</button>
-                <button id="btnFiltroPendentes" onclick="toggleFiltroPendentes()" class="bg-white text-slate-700 border border-slate-300 px-3 py-1 rounded text-[10px] font-bold btn-active">👁️ PENDENTES</button>
-                <button onclick="salvarAcao('VERMELHO')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[10px] font-bold">NÃO DISPARAR (<span class="countSel">0</span>)</button>
-                <button onclick="salvarAcao('VERDE')" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-[10px] font-bold">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
+                <button onclick="baixarDados()" class="bg-slate-600 text-white px-3 py-1.5 rounded text-[10px] font-bold hover:bg-slate-700">🔄 ATUALIZAR LISTA</button>
+                <button id="btnModoFiltro" onclick="toggleModoFiltro()" class="bg-white text-slate-700 border border-slate-300 px-3 py-1 rounded text-[10px] font-bold btn-active">👁️ APENAS ATRASADOS (+7D)</button>
+                <button onclick="salvarAcao('VERMELHO')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[10px] font-bold shadow-md">NÃO DISPARAR (<span class="countSel">0</span>)</button>
+                <button onclick="salvarAcao('VERDE')" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-[10px] font-bold shadow-md">E-MAIL ENVIADO (<span class="countSel">0</span>)</button>
             </div>
         </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2 bg-white p-2 rounded shadow-sm border-l-4 border-blue-500">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2 bg-white p-2 rounded shadow-sm border-l-4 border-red-600">
             <div class="flex items-center gap-2 border-r pr-2">
                 <span class="font-bold text-slate-500 uppercase text-[9px]">Analista:</span>
-                <select id="filtroAnalista" onchange="render()" class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none font-bold"><option value="todos">Todos</option></select>
+                <select id="filtroAnalista" onchange="render()" class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none font-bold text-slate-700"><option value="todos">Todos</option></select>
             </div>
             <div class="flex items-center gap-2 border-r pr-2">
                 <span class="font-bold text-slate-500 uppercase text-[9px]">Busca:</span>
                 <input type="text" id="busca" oninput="render()" placeholder="CNPJ, Razão ou Rede..." class="flex-1 bg-slate-50 border rounded px-1 py-0.5 outline-none">
             </div>
-            <div class="flex items-center gap-4 px-2 border-r text-[10px]">
-                <div class="text-orange-600 font-bold uppercase">Atrasados (+7d): <span id="totalCriticos">0</span></div>
+            <div class="flex items-center gap-4 px-2 border-r text-[11px]">
+                <div class="text-red-700 font-bold uppercase">Total em Atraso: <span id="totalCriticos">0</span></div>
             </div>
             <div class="flex items-center justify-end text-blue-600 font-mono font-bold">
-                <span id="resumo" class="uppercase text-[9px]">Aguardando Sincronização...</span>
+                <span id="resumo" class="uppercase text-[9px]">Sincronizando...</span>
             </div>
         </div>
 
         <div id="mainTable" class="bg-white rounded shadow-sm table-container">
             <table class="min-w-full table-fixed border-collapse">
                 <thead>
-                    <tr class="text-[9px] text-slate-500 uppercase bg-slate-50">
+                    <tr class="text-[9px] text-slate-500 uppercase bg-slate-50 font-bold">
                         <th class="w-8 p-1 text-center border-r"><input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)"></th>
                         <th class="w-24 p-1 text-left border-r">CNPJ</th>
                         <th class="p-1 text-left border-r">RAZÃO SOCIAL</th>
-                        <th class="w-32 p-1 text-left border-r bg-blue-50/30">REDE</th>
+                        <th class="w-32 p-1 text-left border-r text-blue-800">REDE</th>
                         <th class="w-24 p-1 text-left border-r">RESPONSÁVEL</th>
-                        <th class="w-24 p-1 text-right border-r font-black text-red-600 italic">▼ VALOR PENDENTE</th>
-                        <th class="w-24 p-1 text-center">ÚLT. CONTATO</th>
+                        <th class="w-24 p-1 text-right border-r text-red-600 italic">▼ VALOR PENDENTE</th>
+                        <th class="w-24 p-1 text-center font-bold">DIAS SEM AÇÃO</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody" class="text-[10px] text-slate-700"></tbody>
@@ -75,7 +73,7 @@
         const URL_SCRIPT = "https://script.google.com/macros/s/AKfycbzTLydhGGcvI5qAHlBNEP9aX9IEy1RwDJJ8ThhZJI8UwVFe1U-Hx-gImIiSZjWLJxj7ow/exec"; 
         let dados = [];
         let tempoInicio = new Date();
-        let filtroPendentesAtivo = true;
+        let apenasAtrasados = true; 
 
         setInterval(() => {
             const diff = new Date(new Date() - tempoInicio);
@@ -83,7 +81,7 @@
         }, 1000);
 
         async function baixarDados() {
-            document.getElementById('resumo').innerText = "Lendo Planilha...";
+            document.getElementById('resumo').innerText = "Carregando Base...";
             try {
                 const r = await fetch(URL_SCRIPT);
                 const raw = await r.json();
@@ -92,7 +90,7 @@
                 dados = raw.filter(r => String(r['STATUS']).toUpperCase() === "ATUALIZADO")
                 .map(r => {
                     const dataC = parseData(r['ULTIMO CONTATO']);
-                    const dif = Math.ceil((hoje - dataC) / (1000 * 60 * 60 * 24));
+                    const dif = Math.floor((hoje - dataC) / (1000 * 60 * 60 * 24));
                     let valorLimpo = String(r['VALOR PENDENTE'] || "0").replace("R$", "").replace(/\./g, "").replace(",", ".").trim();
                     return { ...r, diasSemAcao: dif, valorNumerico: parseFloat(valorLimpo) || 0, selecionado: false };
                 })
@@ -113,24 +111,11 @@
             return p.length === 3 ? new Date(p[2], p[1]-1, p[0]) : new Date(2000, 0, 1);
         }
 
-        // CORREÇÃO: Função de desmarcação agora atualiza o objeto corretamente
-        function updateSel(cnpj, v) {
-            const item = dados.find(d => d.CNPJ === cnpj);
-            if(item) {
-                item.selecionado = v;
-                // Se desmarcar um, remove o "Selecionar Todos" do topo
-                if(!v) document.getElementById('selectAll').checked = false;
-            }
-            atualizarContadorSelecao();
-        }
-
-        function selecionarCriticos() {
-            const analista = document.getElementById('filtroAnalista').value;
-            dados.forEach(d => {
-                const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
-                const semAcao = !d['ACAO_SISTEMA'];
-                if (matchA && semAcao && d.diasSemAcao > 7) d.selecionado = true;
-            });
+        function toggleModoFiltro() {
+            apenasAtrasados = !apenasAtrasados;
+            const btn = document.getElementById('btnModoFiltro');
+            btn.innerText = apenasAtrasados ? "👁️ APENAS ATRASADOS (+7D)" : "👁️ MOSTRAR TODOS";
+            btn.classList.toggle('btn-active');
             render();
         }
 
@@ -144,35 +129,38 @@
                 const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
                 const txt = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
                 const matchB = txt.includes(busca);
-                const temAcao = d['ACAO_SISTEMA'] === 'VERDE' || d['ACAO_SISTEMA'] === 'VERMELHO';
-                const matchP = filtroPendentesAtivo ? !temAcao : true;
-                return matchA && matchB && matchP;
+                
+                // FILTRO AUTOMÁTICO DE 7 DIAS
+                const temAcaoRecente = d['ACAO_SISTEMA'] === 'VERDE' || d['ACAO_SISTEMA'] === 'VERMELHO';
+                const matchAtraso = apenasAtrasados ? (d.diasSemAcao > 7 && !temAcaoRecente) : !temAcaoRecente;
+
+                return matchA && matchB && matchAtraso;
             });
 
             filtrados.forEach(row => {
                 const tr = document.createElement('tr');
-                const acao = row['ACAO_SISTEMA'];
-                const ehCritico = row.diasSemAcao > 7 && !acao;
-                let corClasse = row.cor_sessao === 'azul' ? 'row-blue' : acao === 'VERDE' ? 'row-green' : acao === 'VERMELHO' ? 'row-red' : '';
-                if (!corClasse && row.diasSemAcao <= 7) corClasse = 'row-recent';
-
+                const corClasse = row.cor_sessao === 'azul' ? 'row-blue' : '';
                 tr.className = `border-b hover:bg-slate-50 ${corClasse}`;
                 tr.innerHTML = `
                     <td class="text-center"><input type="checkbox" ${row.selecionado ? 'checked' : ''} onchange="updateSel('${row.CNPJ}', this.checked)"></td>
                     <td class="cnpj-cell" onclick="copiar('${row.CNPJ}')">${row.CNPJ}</td>
                     <td class="font-bold">${row['RAZÃO SOCIAL']}</td>
-                    <td class="text-blue-800 font-semibold">${row['REDE ESTABELECIMENTO'] || '-'}</td>
+                    <td class="text-blue-800">${row['REDE ESTABELECIMENTO'] || '-'}</td>
                     <td>${row['USUARIO RESPONSAVEL']}</td>
                     <td class="text-right text-red-700 font-mono font-bold">R$ ${row['VALOR PENDENTE'] || '0,00'}</td>
-                    <td class="text-center font-semibold">
-                        ${String(row['ULTIMO CONTATO'] || '-').split(' ')[0]}
-                        ${ehCritico ? `<br><span class="badge-alert">${row.diasSemAcao} DIAS</span>` : ''}
-                    </td>
+                    <td class="text-center"><span class="${row.diasSemAcao > 7 ? 'badge-atraso' : ''}">${row.diasSemAcao} dias</span></td>
                 `;
                 body.appendChild(tr);
             });
+
             document.getElementById('totalCriticos').innerText = dados.filter(d => d.diasSemAcao > 7 && !d['ACAO_SISTEMA']).length;
-            document.getElementById('resumo').innerText = `LISTADOS: ${filtrados.length}`;
+            document.getElementById('resumo').innerText = `ALVOS: ${filtrados.length}`;
+            atualizarContadorSelecao();
+        }
+
+        function updateSel(cnpj, v) {
+            const item = dados.find(d => d.CNPJ === cnpj);
+            if(item) item.selecionado = v;
             atualizarContadorSelecao();
         }
 
@@ -182,13 +170,10 @@
         }
 
         async function salvarAcao(cor) {
-            // Pega APENAS quem realmente está com o objeto selecionado como true
             const sel = dados.filter(d => d.selecionado);
-            if (sel.length === 0) return alert("Nenhum item selecionado para salvar.");
-            
-            if (!confirm(`Confirmar ação em lote para ${sel.length} itens?`)) return;
-
-            document.getElementById('resumo').innerText = "Sincronizando lote...";
+            if (sel.length === 0) return;
+            if (!confirm(`Sincronizar ${sel.length} registros?`)) return;
+            document.getElementById('resumo').innerText = "Salvando...";
             try {
                 const response = await fetch(URL_SCRIPT, {
                     method: 'POST',
@@ -198,16 +183,8 @@
                     sel.forEach(i => { i['ACAO_SISTEMA'] = cor; i.selecionado = false; i.cor_sessao = ''; });
                     document.getElementById('selectAll').checked = false;
                     render();
-                    alert("Salvo com sucesso!");
                 }
             } catch (e) { alert("Erro ao salvar."); }
-            finally { document.getElementById('resumo').innerText = "Sincronizado"; }
-        }
-
-        function toggleFiltroPendentes() {
-            filtroPendentesAtivo = !filtroPendentesAtivo;
-            document.getElementById('btnFiltroPendentes').classList.toggle('btn-active');
-            render();
         }
 
         function copiar(txt) {
@@ -219,18 +196,13 @@
         function toggleAll(v) {
             const analista = document.getElementById('filtroAnalista').value;
             const busca = document.getElementById('busca').value.toLowerCase();
-            
-            // Só marca quem está VISÍVEL com base nos filtros atuais
             dados.forEach(d => {
                 const txt = `${d.CNPJ} ${d['RAZÃO SOCIAL']} ${d['REDE ESTABELECIMENTO'] || ''}`.toLowerCase();
                 const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
                 const matchB = txt.includes(busca);
                 const temAcao = d['ACAO_SISTEMA'] === 'VERDE' || d['ACAO_SISTEMA'] === 'VERMELHO';
-                const matchP = filtroPendentesAtivo ? !temAcao : true;
-
-                if (matchA && matchB && matchP) {
-                    d.selecionado = v;
-                }
+                const matchAtraso = apenasAtrasados ? (d.diasSemAcao > 7 && !temAcao) : !temAcao;
+                if (matchA && matchB && matchAtraso) d.selecionado = v;
             });
             render();
         }
