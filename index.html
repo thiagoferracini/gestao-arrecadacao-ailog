@@ -166,4 +166,73 @@
                     <td class="text-blue-800 font-semibold">${row['REDE ESTABELECIMENTO'] || '-'}</td>
                     <td>${row['USUARIO RESPONSAVEL']}</td>
                     <td class="text-right text-red-700 font-mono font-bold">R$ ${row['VALOR PENDENTE'] || '0,00'}</td>
-                    <td class="text-center"><span
+                    <td class="text-center"><span class="${row.diasSemAcao > 7 ? 'badge-atraso' : ''}">${row.semData ? 'S/ Data' : row.diasSemAcao + ' dias'}</span></td>
+                `;
+                body.appendChild(tr);
+            });
+
+            document.getElementById('totalCriticos').innerText = dados.filter(d => d.diasSemAcao > 7 && !d['ACAO_SISTEMA']).length;
+            document.getElementById('resumo').innerText = `LISTADOS: ${filtrados.length}`;
+            atualizarContadorSelecao();
+        }
+
+        function updateSel(cnpj, v) {
+            const item = dados.find(d => d.CNPJ === cnpj);
+            if(item) item.selecionado = v;
+            atualizarContadorSelecao();
+        }
+
+        function atualizarContadorSelecao() {
+            const total = dados.filter(d => d.selecionado).length;
+            document.querySelectorAll('.countSel').forEach(el => el.innerText = total);
+        }
+
+        async function salvarAcao(cor) {
+            const sel = dados.filter(d => d.selecionado);
+            if (sel.length === 0) return;
+            if (!confirm(`Sincronizar ${sel.length} itens?`)) return;
+            document.getElementById('resumo').innerText = "Salvando...";
+            try {
+                const response = await fetch(URL_SCRIPT, {
+                    method: 'POST',
+                    body: JSON.stringify({ updates: sel.map(i => ({ cnpj: i.CNPJ, cor: cor })) })
+                });
+                if (response.ok) {
+                    sel.forEach(i => { i['ACAO_SISTEMA'] = cor; i.selecionado = false; i.cor_sessao = ''; });
+                    document.getElementById('selectAll').checked = false;
+                    render();
+                }
+            } catch (e) { alert("Erro ao salvar."); }
+            finally { document.getElementById('resumo').innerText = "Sincronizado"; }
+        }
+
+        function toggleModoFiltro() {
+            apenasAtrasados = !apenasAtrasados;
+            document.getElementById('btnModoFiltro').innerText = apenasAtrasados ? "👁️ APENAS ATRASADOS (+7D)" : "👁️ MOSTRAR TODOS";
+            document.getElementById('btnModoFiltro').classList.toggle('btn-active');
+            render();
+        }
+
+        function copiar(txt) {
+            navigator.clipboard.writeText(txt);
+            const item = dados.find(d => d.CNPJ === txt);
+            if(item && !item['ACAO_SISTEMA']) { item.cor_sessao = 'azul'; render(); }
+        }
+
+        function toggleAll(v) {
+            const analista = document.getElementById('filtroAnalista').value;
+            const busca = document.getElementById('busca').value.toLowerCase();
+            dados.forEach(d => {
+                const matchA = analista === 'todos' || d['USUARIO RESPONSAVEL'] === analista;
+                const matchB = `${d.CNPJ} ${d['RAZÃO SOCIAL']}`.toLowerCase().includes(busca);
+                const temAcao = d['ACAO_SISTEMA'] === 'VERDE' || d['ACAO_SISTEMA'] === 'VERMELHO';
+                const matchAtraso = apenasAtrasados ? (d.diasSemAcao > 7 && !temAcao) : !temAcao;
+                if (matchA && matchB && matchAtraso) d.selecionado = v;
+            });
+            render();
+        }
+
+        baixarDados();
+    </script>
+</body>
+</html>
